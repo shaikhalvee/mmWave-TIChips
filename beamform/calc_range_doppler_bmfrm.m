@@ -55,7 +55,6 @@ function [RD_map, range_axis, ...
     % Range FFT (dim 1)
     range_fft    = fft(radar_data_win, paramsConfig.rangeFFTSize, 1);  % [range, chirps, Rx, angles]
 
-
     % Doppler window coefficient
     range_fft_win = range_fft .* reshape(doppler_win,1,[],1,1);
 

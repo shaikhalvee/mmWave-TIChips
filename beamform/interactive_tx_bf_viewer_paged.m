@@ -2,7 +2,7 @@ function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
     frames_per_batch = 60;
-    data_folder = './output/txbf_prk_drn_9_1_9/';
+    data_folder = './output/txbf_13_7_25/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
     config_folder = data_folder;
 
@@ -76,7 +76,7 @@ function interactive_tx_bf_viewer_paged()
         angleIdx = round(get(hAngle, 'Value'));
         isLog1 = get(hCB1, 'Value');
         isLog2 = get(hCB2, 'Value');
-        isLog3 = get(hCB3, 'Value');
+        isLog3 = get(hCB3, 'Value'); 
 
         % Global frame index
         globalFrameIdx = curr_batch_start + frameIdx - 1;
@@ -89,105 +89,144 @@ function interactive_tx_bf_viewer_paged()
         to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
+
+        max_range = 200; % meters
+        idx_range = find(range_axis <= max_range);
+
+        to_plot = to_plot(idx_range, :);
+        range_axis = range_axis(idx_range);
+
         range_angle_stich = all_range_angle_stich{globalFrameIdx};
 
         % RD Map
         axes(hAx1); cla(hAx1);
         if isLog1
             imagesc(doppler_axis, range_axis, 20*log10(to_plot + eps));
-            title('Range-Doppler Map (dB)', 'FontSize', 16);
+            title('Range-Doppler Map (dB)', 'FontSize', 20);
         else
             imagesc(doppler_axis, range_axis, to_plot);
-            title('Range-Doppler Map (linear)', 'FontSize', 16);
+            title('Range-Doppler Map (linear)', 'FontSize', 20);
         end
-        xlabel('Doppler (m/s)'); ylabel('Range (m)', 'FontSize', 16);
+        xlabel('Doppler (m/s)', 'FontSize', 20); 
+        ylabel('Range (m)', 'FontSize', 20);
         colorbar; axis xy;
-        set(gca, 'FontSize', 14);
-
+        set(gca, 'FontSize', 20);
+ 
         % Zoom region [EDIT as needed]
-        doppler_zoom = [-5 5]; % Doppler axis limits for zoom
-        range_zoom = [80 120]; % Range axis limits for zoom
+        % doppler_zoom = [-5 5]; % Doppler axis limits for zoom
+        % range_zoom = [95 115]; % Range axis limits for zoom
+
+        % Draw rectangle on main plot
+        hold on;
+        % rect = rectangle('Position', [doppler_zoom(1), range_zoom(1), diff(doppler_zoom), diff(range_zoom)], ...
+            % 'EdgeColor', 'k', 'LineWidth', 2);
         
         % Create inset axes [Position in normalized units: [x y w h]]
-        insetPos = [0.55 0.65 0.3 0.25];
-        hInset = axes('Position', insetPos);
+        % insetPos = [0.50 0.65 0.3 0.25];
+        % insetPos = [0.73 0.5 0.25 0.35]; % [x y w h] in normalized figure units
+        % hInset = axes('Position', insetPos);
 
         % Find the indices corresponding to zoom region
-        [~, x1] = min(abs(doppler_axis - doppler_zoom(1)));
-        [~, x2] = min(abs(doppler_axis - doppler_zoom(2)));
-        [~, y1] = min(abs(range_axis - range_zoom(1)));
-        [~, y2] = min(abs(range_axis - range_zoom(2)));
+        % [~, x1] = min(abs(doppler_axis - doppler_zoom(1)));
+        % [~, x2] = min(abs(doppler_axis - doppler_zoom(2)));
+        % [~, y1] = min(abs(range_axis - range_zoom(1)));
+        % [~, y2] = min(abs(range_axis - range_zoom(2)));
 
-        zoom_data = to_plot(y1:y2, x1:x2);
-        zoom_x = doppler_axis(x1:x2);
-        zoom_y = range_axis(y1:y2);
+        % zoom_data = to_plot(y1:y2, x1:x2);
+        % zoom_x = doppler_axis(x1:x2);
+        % zoom_y = range_axis(y1:y2);
 
-        imagesc(zoom_x, zoom_y, zoom_data);
-        axis xy;
-        colormap(hInset, 'jet');
-        set(hInset, 'FontSize', 12);
-        box on;
-        title('Zoom', 'FontSize', 12);
+        % imagesc(zoom_x, zoom_y, zoom_data);
+        % axis xy tight;
+        % colormap(hInset);
+        % set(hInset, 'FontSize', 20);
+        % box on;
+        % title('Zoomed Range Doppler', 'FontSize', 20);
+
+        % 4. Draw connecting lines (use annotation, which needs normalized figure units)
+        % Rectangle corners in main axes (convert to normalized units)
+        % main_ax_pos = get(hInset, 'Position');
+        % % Lower-left and upper-right corners (in axes units)
+        % LL = [doppler_zoom(1), range_zoom(1)];
+        % UR = [doppler_zoom(2), range_zoom(2)];
+        % % Convert these to normalized figure units:
+        % ax = hInset;
+        % xl = xlim(ax); yl = ylim(ax);
+        % xrange = xl(2) - xl(1); yrange = yl(2) - yl(1);
+
+        % ll_norm = [(LL(1)-xl(1))/xrange*main_ax_pos(3)+main_ax_pos(1), ...
+        %            (LL(2)-yl(1))/yrange*main_ax_pos(4)+main_ax_pos(2)];
+        % ur_norm = [(UR(1)-xl(1))/xrange*main_ax_pos(3)+main_ax_pos(1), ...
+                   % (UR(2)-yl(1))/yrange*main_ax_pos(4)+main_ax_pos(2)];
+
+        % Inset corners (e.g., lower left and upper right)
+        % inset_ax_pos = get(hInset, 'Position');
+        % inset_ll = [inset_ax_pos(1), inset_ax_pos(2)];
+        % inset_ur = [inset_ax_pos(1)+inset_ax_pos(3), inset_ax_pos(2)+inset_ax_pos(4)];
+
+        % Draw lines: main LL to inset LL, main UR to inset UR
+        % annotation('line', [ll_norm(1), inset_ll(1)], [ll_norm(2), inset_ll(2)], 'Color', 'k', 'LineWidth', 1);
+        % annotation('line', [ur_norm(1), inset_ur(1)], [ur_norm(2), inset_ur(2)], 'Color', 'k', 'LineWidth', 1);
 
         % Optionally draw a rectangle on the main plot to show zoom area
-        axes(gca); % Back to main axes
-        hold on;
-        rectangle('Position', [doppler_zoom(1), range_zoom(1), ...
-            diff(doppler_zoom), diff(range_zoom)], ...
-            'EdgeColor', 'w', 'LineWidth', 2, 'LineStyle', '--');
-        hold off;
+        % axes(gca); % Back to main axes
+        % hold on;
+        % rectangle('Position', [doppler_zoom(1), range_zoom(1), ...
+        %     diff(doppler_zoom), diff(range_zoom)], ...
+        %     'EdgeColor', 'w', 'LineWidth', 2, 'LineStyle', '--');
+        % hold off;
 
         % Range Profile
-        % axes(hAx2); cla(hAx2);
-        % if isLog2
-        %     plot(range_axis, 20*log10(max(to_plot,2)+eps), 'LineWidth', 1.0);
-        %     title('Range Profile (dB)', 'FontSize', 16);
-        %     ylabel('Power (dB)', 'FontSize', 16);
-        % else
-        %     plot(range_axis, mean(to_plot,2), 'LineWidth', 1.0);
-        %     title('Range Profile (linear)', 'FontSize', 16);
-        %     ylabel('Power (linear)', 'FontSize', 16);
-        % end
-        % xlabel('Range (m)', 'FontSize', 16);
-        % set(gca, 'FontSize', 14);
-        % 
-        % % Doppler Profile
-        % axes(hAx3); cla(hAx3);
-        % if isLog3
-        %     plot(doppler_axis, log10(max(to_plot,1)+eps), 'LineWidth', 1.0);
-        %     title('Doppler Profile (dB)', 'FontSize', 16);
-        %     ylabel('Power (dB)', 'FontSize', 16);
-        % else
-        %     plot(doppler_axis, mean(to_plot,1), 'LineWidth', 1.0);
-        %     title('Doppler Profile (linear)', 'FontSize', 16);
-        %     ylabel('Power (linear)', 'FontSize', 16);
-        % end
-        % xlabel('Velocity (m/s)', 'FontSize', 16);
-        % set(gca, 'FontSize', 14);
-        % 
-        % % Range-Azimuth
-        % axes(hAx4); cla(hAx4);
-        % % Assume range_angle_stich: (range, angle) or (range, angle, ...)
-        % if ~ismatrix(range_angle_stich)
-        %     range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
-        % else
-        %     range_angle_stich_2d = range_angle_stich;
-        % end
-        % % Build axes (same as your display_graph)
-        % indices_1D = 1:numel(range_axis);
-        % sine_theta = sind(anglesToSteer);
-        % cos_theta = sqrt(1-sine_theta.^2);
-        % [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
-        % [~, cos_theta_mat] = meshgrid(range_axis(indices_1D), cos_theta);
-        % x_axis = R_mat.*cos_theta_mat;
-        % y_axis = R_mat.*sine_theta_mat;
-        % range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
-        % surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
-        % view(0, 60);
-        % xlabel('meters'); ylabel('meters');
-        % title('Stich range/azimuth');
-        % axis tight;
-        % colorbar;
+        axes(hAx2); cla(hAx2);
+        if isLog2
+            plot(range_axis, 20*log10(max(to_plot,2)+eps), 'LineWidth', 1.0);
+            title('Range Profile (dB)', 'FontSize', 16);
+            ylabel('Power (dB)', 'FontSize', 16);
+        else
+            plot(range_axis, mean(to_plot,2), 'LineWidth', 1.0);
+            title('Range Profile (linear)', 'FontSize', 16);
+            ylabel('Power (linear)', 'FontSize', 16);
+        end
+        xlabel('Range (m)', 'FontSize', 16);
+        set(gca, 'FontSize', 14);
+
+        % Doppler Profile
+        axes(hAx3); cla(hAx3);
+        if isLog3
+            plot(doppler_axis, log10(max(to_plot,1)+eps), 'LineWidth', 1.0);
+            title('Doppler Profile (dB)', 'FontSize', 16);
+            ylabel('Power (dB)', 'FontSize', 16);
+        else
+            plot(doppler_axis, mean(to_plot,1), 'LineWidth', 1.0);
+            title('Doppler Profile (linear)', 'FontSize', 16);
+            ylabel('Power (linear)', 'FontSize', 16);
+        end
+        xlabel('Velocity (m/s)', 'FontSize', 16);
+        set(gca, 'FontSize', 14);
+
+        % Range-Azimuth
+        axes(hAx4); cla(hAx4);
+        % Assume range_angle_stich: (range, angle) or (range, angle, ...)
+        if ~ismatrix(range_angle_stich)
+            range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
+        else
+            range_angle_stich_2d = range_angle_stich;
+        end
+        % Build axes (same as your display_graph)
+        indices_1D = 1:numel(range_axis);
+        sine_theta = sind(anglesToSteer);
+        cos_theta = sqrt(1-sine_theta.^2);
+        [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
+        [~, cos_theta_mat] = meshgrid(range_axis(indices_1D), cos_theta);
+        x_axis = R_mat.*cos_theta_mat;
+        y_axis = R_mat.*sine_theta_mat;
+        range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
+        surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
+        view(0, 60);
+        xlabel('meters'); ylabel('meters');
+        title('Stich range/azimuth');
+        axis tight;
+        colorbar;
     end
 
     % Batch loader: clears previous batch_data to free memory

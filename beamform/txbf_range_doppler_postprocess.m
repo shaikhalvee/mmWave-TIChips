@@ -5,11 +5,11 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'D:\Documents\Drone_Data\data\txbf_prk_62625';
+adc_data_folder = 'D:\Documents\Drone_Data\data\txbf_13_7_25';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_11/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10/'];
 calib_file      = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -20,7 +20,7 @@ configFromAdcData = get_radar_config(params.anglesToSteer, [adc_data_folder '\']
 params.Slope_MHzperus = configFromAdcData.Slope_MHzperus;
 params.TI_Cascade_RX_ID = configFromAdcData.TI_Cascade_RX_ID;
 params.numRX = configFromAdcData.numRX;
-params.D_RX = configFromAdcData.D_RX; 
+params.D_RX = configFromAdcData.D_RX;
 params.calibrationInterp = configFromAdcData.calibrationInterp;
 params.phaseCalibOnly = configFromAdcData.phaseCalibOnly;
 
@@ -31,7 +31,7 @@ numAngle = params.NumAnglesToSweep;
 
 % clutter & noise handle
 dcOffsetRemoval = true;
-dopplerClutterRemoval = true;
+dopplerClutterRemoval = false;
 
 
 % paramsConfig = struct;
