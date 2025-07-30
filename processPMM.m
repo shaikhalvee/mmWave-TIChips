@@ -10,9 +10,9 @@ S = load(fullfile(outDir,'rangeDopplerMap.mat'), 'rangeDopplerFFTData','mmWaveDe
 % S = load('output/fft_result_cube.mat');
 % fft_complex_radar_cube = S.fft_complex_radar_cube;
 
-sprintf("%d", S.mmWaveDevice.range_res);
+% sprintf("%d", S.mmWaveDevice.range_res);
 
-fft_complex_radar_cube = S.rangeDopplerFFTData;
+fft_complex_radar_cube = S.rangeDopplerFFTData; % radar data cube [R D Rx F]
 
 %--- PARAMETERS ---------------------
 jMin = 2;          % minimum fold size
@@ -33,7 +33,8 @@ for f = 1:numFrames
         for r = 1:numRangeBins
             % 1×D Doppler‐spectrum magnitude at (r,f,rx)
             % dopplerSpectrum = 20*log10(fliplr(abs(fft_complex_radar_cube(r, :, f, rx))));
-            dopplerSpectrum = fliplr(abs(fft_complex_radar_cube(r, :, rx, f))); 
+            % dopplerSpectrum = fliplr(abs(fft_complex_radar_cube(r, :, rx, f)));
+            dopplerSpectrum = abs(fft_complex_radar_cube(r, :, rx, f));
             % usually it was done before. but for the sake of input sanitization, we're performing the abs.
 
             bestScore = 0;

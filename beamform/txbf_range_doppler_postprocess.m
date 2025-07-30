@@ -9,7 +9,7 @@ adc_data_folder = 'D:\Documents\Drone_Data\data\txbf_13_7_25';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_1m/'];
 calib_file      = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -31,8 +31,9 @@ numAngle = params.NumAnglesToSweep;
 
 % clutter & noise handle
 dcOffsetRemoval = true;
-dopplerClutterRemoval = false;
+dopplerClutterRemoval = true;
 
+% rangeDopplerFFTmap_12 means new filter added
 
 % paramsConfig = struct;
 % I shouldn't repopulate here

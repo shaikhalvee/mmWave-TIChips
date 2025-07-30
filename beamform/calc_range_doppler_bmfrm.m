@@ -61,8 +61,15 @@ function [RD_map, range_axis, ...
     % Doppler clutter removal
     if dopplerClutterRemoval
         % Remove mean across slow time (chirps) for each [range, Rx, angle]
-        range_fft_win = range_fft_win - mean(range_fft_win, 2);
+        % range_fft_win = range_fft_win - mean(range_fft_win, 2);
         % range_fft_win = bsxfun(@minus, range_fft_win, mean(range_fft_win,2));
+
+        % hpFilt = fir1(8, 0.05, 'high'); % FIR high-pass (fir1) filter
+        % hpFilt = [1, -2, 1]; % 3-pulse canceller
+        % range_fft_win = doppler_highpass_filter(range_fft_win, hpFilt);
+
+        % Replace with mean
+        range_fft_win = range_fft_win - mean(range_fft_win, 2)/2;
     end
     
     % Doppler FFT (dim 2)

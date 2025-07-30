@@ -39,7 +39,7 @@ function PMMmap = calc_PMM_beamform(fft_complex_radar_cube, jMin, jMax)
 
                     bestScore = max(bestScore, score_j);
                 end
-                PMMmap(r, f, rx) = bestScore;
+                  PMMmap(r, f, rx) = bestScore;
             end
         end
     end

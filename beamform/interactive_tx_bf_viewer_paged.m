@@ -3,7 +3,7 @@ function interactive_tx_bf_viewer_paged()
 
     frames_per_batch = 60;
     data_folder = './output/txbf_13_7_25/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_1m/'];
     config_folder = data_folder;
 
     % Get all frame file names
@@ -102,15 +102,15 @@ function interactive_tx_bf_viewer_paged()
         axes(hAx1); cla(hAx1);
         if isLog1
             imagesc(doppler_axis, range_axis, 20*log10(to_plot + eps));
-            title('Range-Doppler Map (dB)', 'FontSize', 20);
+            title('Range-Doppler Map (dB)', 'FontSize', 16);
         else
             imagesc(doppler_axis, range_axis, to_plot);
-            title('Range-Doppler Map (linear)', 'FontSize', 20);
+            title('Range-Doppler Map (linear)', 'FontSize', 16);
         end
-        xlabel('Doppler (m/s)', 'FontSize', 20); 
-        ylabel('Range (m)', 'FontSize', 20);
+        xlabel('Doppler (m/s)', 'FontSize', 16); 
+        ylabel('Range (m)', 'FontSize', 16);
         colorbar; axis xy;
-        set(gca, 'FontSize', 20);
+        set(gca, 'FontSize', 16);
  
         % Zoom region [EDIT as needed]
         % doppler_zoom = [-5 5]; % Doppler axis limits for zoom
@@ -197,12 +197,24 @@ function interactive_tx_bf_viewer_paged()
             title('Doppler Profile (dB)', 'FontSize', 16);
             ylabel('Power (dB)', 'FontSize', 16);
         else
+            % to_plot_max = squeeze(max(to_plot,[],1));
+            % middle_bin = 64;
+            % to_plot_max_exc_middle = to_plot_max([1:middle_bin-1 middle_bin+1:end], :); % [127 19]
+            % doppler_axis_exc_middle = doppler_axis([1:middle_bin-1 middle_bin+1:end]);  % [127,1]
+            % to_plot_max_ang = max(to_plot_max_exc_middle, [], 2);  % [127,1] (max over angles)
+            % 
+            % plot(doppler_axis_exc_middle, to_plot_max_ang, 'LineWidth', 1.0);
+            % % xlabel('Doppler (m/s)');
+            % ylabel('Max Power (linear)');
+            % title('Doppler Profile (excluding center bin)');
+
+
             plot(doppler_axis, mean(to_plot,1), 'LineWidth', 1.0);
             title('Doppler Profile (linear)', 'FontSize', 16);
             ylabel('Power (linear)', 'FontSize', 16);
         end
         xlabel('Velocity (m/s)', 'FontSize', 16);
-        set(gca, 'FontSize', 14);
+        set(gca, 'FontSize', 16);
 
         % Range-Azimuth
         axes(hAx4); cla(hAx4);
