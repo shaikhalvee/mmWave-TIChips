@@ -11,15 +11,15 @@ function mmwave_config_calculator
     % Parameter name, default, position
     inputs = {
         'Start Frequency (GHz)',      77,      [20 420 170 22]
-        'Chirp Slope (MHz/us)',       70,      [20 380 170 22]
-        'ADC Sample Rate (ksps)',     8000,    [20 340 170 22]
-        'Num ADC Samples',            256,     [20 300 170 22]
+        'Chirp Slope (MHz/us)',       79,      [20 380 170 22]
+        'ADC Sample Rate (ksps)',     16000,   [20 340 170 22]
+        'Num ADC Samples',            512,     [20 300 170 22]
         'ADC Start Time (us)',        6,       [20 260 170 22]
         'Ramp End Time (us)',         40,      [20 220 170 22]
-        'Idle Time (us)',             10,      [20 180 170 22]
-        'Num Chirps/Loop',            64,      [20 140 170 22]
+        'Idle Time (us)',             5,      [20 180 170 22]
+        'Num Chirps/Loop',            128,      [20 140 170 22]
         'Num TX Antennas',            3,       [20 100 170 22]
-        'Doppler FFT Size',           64,      [20 60 170 22]
+        'Doppler FFT Size',           128,      [20 60 170 22]
     };
 
     hEdit = gobjects(size(inputs,1),1);

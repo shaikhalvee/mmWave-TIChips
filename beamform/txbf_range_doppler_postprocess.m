@@ -5,12 +5,12 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'D:\Documents\Drone_Data\data\txbf_13_7_25';
+adc_data_folder = 'D:\Documents\Drone_Data\data\in_txbf_5_8_25_2';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_1m/'];
-calib_file      = './input/calibrConfig/calibrateResults_dummy.mat';
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_11/'];
+calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
 oldParams = load(oldParamsFile, 'params');
@@ -34,7 +34,7 @@ dcOffsetRemoval = true;
 dopplerClutterRemoval = true;
 
 % rangeDopplerFFTmap_12 means new filter added
-
+ 
 % paramsConfig = struct;
 % I shouldn't repopulate here
 % paramsConfig.anglesToSteer = -23.45;

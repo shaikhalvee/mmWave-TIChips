@@ -18,7 +18,7 @@ function run_tx_beamforming_capture(angles, profileFcn, paths)
     % clearvars -except profileFcn angles paths;
 
     %% User‑editable paths -------------------------------------------
-    paths.testRoot = 'txbf_13_7_25'; % the name of the test file/folder
+    paths.testRoot = 'in_txbf_5_8_25_2'; % the name of the test file/folder
     paths.outDir = ['./output/' paths.testRoot];
     paths.dllPath      = "C:\ti\mmwave_studio_02_01_01_00\mmWaveStudio\Clients\RtttNetClientController\RtttNetClientAPI.dll";
     paths.psLutPath    = "./input/calibrConfig/phaseShifterCalibration.mat";
@@ -38,7 +38,7 @@ function run_tx_beamforming_capture(angles, profileFcn, paths)
     [Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg] = build_phase_luts(params, calib);
 
     %% Push configuration to each device -----------------------------
-    activeDevs = find(pa  rams.RadarDevice);   % 1..4 for master+slaves
+    activeDevs = find(params.RadarDevice);   % 1..4 for master+slaves
 
     for devId = activeDevs
         err = sensor_advance_frame_BF(devId, params, Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg);

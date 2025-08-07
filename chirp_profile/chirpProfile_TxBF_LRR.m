@@ -82,14 +82,14 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     Num_Frames = 0;
     
     params.Start_Freq_GHz = 77;        % start freq (GHz)
-    params.Slope_MHzperus = 7;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
+    params.Slope_MHzperus = 22;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
     params.Idle_Time_us = 5;
     params.Tx_Start_Time_us = 0;
     params.Adc_Start_Time_us = 5;
     params.Ramp_End_Time_us = 40;      % relatively short ramp => longer max range
     params.Sampling_Rate_ksps = 16000; % 15 Msps
     params.Samples_per_Chirp = 512;    
-    params.Rx_Gain_dB = 24;
+    params.Rx_Gain_dB = 52;
 
     % range resolution: 1.255 m
     
@@ -137,7 +137,8 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     end
     
     % Frame repetition time in ms
-    params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
+    % params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
+    params.Frame_Repetition_Period_ms = 200;
 
     %% Algorithm / FFT parameters
     params.ApplyRangeDopplerWind = 1;

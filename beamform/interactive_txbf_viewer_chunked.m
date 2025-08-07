@@ -1,9 +1,12 @@
-function interactive_tx_bf_viewer_paged()
-% INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
+function interactive_txbf_viewer_chunked()
+% INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results,
+% with optional summing/averaging over multiple frames (frameChunk mode).
 
     frames_per_batch = 120;
+    frameChunk = 8; % <-- Number of consecutive frames to sum/average
+    
     data_folder = './output/in_txbf_5_8_25_2/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
     % Get all frame file names
@@ -12,9 +15,9 @@ function interactive_tx_bf_viewer_paged()
 
     % Load metadata arrays (axes, stich, params)
     config_data = load(fullfile(config_folder, 'config.mat'));
-    all_range_axis = config_data.all_range_axis;       
-    all_doppler_axis = config_data.all_doppler_axis;     
-    all_range_angle_stich = config_data.all_range_angle_stich;  
+    all_range_axis = config_data.all_range_axis;
+    all_doppler_axis = config_data.all_doppler_axis;
+    all_range_angle_stich = config_data.all_range_angle_stich;
 
     params_file = dir(fullfile(config_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in the given folder');
@@ -83,16 +86,32 @@ function interactive_tx_bf_viewer_paged()
         set(hFrameLabel, 'String', sprintf('Frame: %d/%d', globalFrameIdx, total_frames));
         set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(angleIdx)));
 
-        % Load from batch_data (should only be frames in current batch)
-        D = batch_data{frameIdx};
-        RD_map = abs(D.RD_map); % [R D Rx Ang]
-        to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
+        % ----------- Multi-frame summation/averaging ----------
+        % Determine chunking range (centered at current frame)
+        halfChunk = floor(frameChunk / 2);
+        startFrame = max(globalFrameIdx - halfChunk, 1);
+        endFrame = min(globalFrameIdx + (frameChunk - halfChunk - 1), total_frames);
+
+        sum_RD = 0; count_RD = 0;
+        for idx = startFrame:endFrame
+            % If this frame is within the current batch, use batch_data (efficient); else, load directly
+            if idx >= curr_batch_start && idx <= curr_batch_end
+                D = batch_data{idx - curr_batch_start + 1};
+            else
+                D = load(fullfile(frame_files(idx).folder, frame_files(idx).name));
+            end
+            RD_map = abs(D.RD_map); % [R D Rx Ang]
+            % Average over Rx for the desired angle
+            to_add = mean(RD_map(:, :, :, angleIdx), 3);
+            sum_RD = sum_RD + to_add;
+            count_RD = count_RD + 1;
+        end
+        to_plot = sum_RD / count_RD;  % Use sum_RD if you want sum, not average
+
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
-
         max_range = 10; % meters
         idx_range = find(range_axis <= max_range);
-
         to_plot = to_plot(idx_range, :);
         range_axis = range_axis(idx_range);
 
@@ -102,79 +121,15 @@ function interactive_tx_bf_viewer_paged()
         axes(hAx1); cla(hAx1);
         if isLog1
             imagesc(doppler_axis, range_axis, 20*log10(to_plot + eps));
-            title('Range-Doppler Map (dB)', 'FontSize', 16);
+            title(sprintf('Range-Doppler Map (dB, frames %d-%d)', startFrame, endFrame), 'FontSize', 16);
         else
             imagesc(doppler_axis, range_axis, to_plot);
-            title('Range-Doppler Map (linear)', 'FontSize', 16);
+            title(sprintf('Range-Doppler Map (linear, frames %d-%d)', startFrame, endFrame), 'FontSize', 16);
         end
         xlabel('Doppler (m/s)', 'FontSize', 16); 
         ylabel('Range (m)', 'FontSize', 16);
         colorbar; axis xy;
         set(gca, 'FontSize', 16);
- 
-        % Zoom region [EDIT as needed]
-        % doppler_zoom = [-5 5]; % Doppler axis limits for zoom
-        % range_zoom = [95 115]; % Range axis limits for zoom
-
-        % Draw rectangle on main plot
-        hold on;
-        % rect = rectangle('Position', [doppler_zoom(1), range_zoom(1), diff(doppler_zoom), diff(range_zoom)], ...
-            % 'EdgeColor', 'k', 'LineWidth', 2);
-        
-        % Create inset axes [Position in normalized units: [x y w h]]
-        % insetPos = [0.50 0.65 0.3 0.25];
-        % insetPos = [0.73 0.5 0.25 0.35]; % [x y w h] in normalized figure units
-        % hInset = axes('Position', insetPos);
-
-        % Find the indices corresponding to zoom region
-        % [~, x1] = min(abs(doppler_axis - doppler_zoom(1)));
-        % [~, x2] = min(abs(doppler_axis - doppler_zoom(2)));
-        % [~, y1] = min(abs(range_axis - range_zoom(1)));
-        % [~, y2] = min(abs(range_axis - range_zoom(2)));
-
-        % zoom_data = to_plot(y1:y2, x1:x2);
-        % zoom_x = doppler_axis(x1:x2);
-        % zoom_y = range_axis(y1:y2);
-
-        % imagesc(zoom_x, zoom_y, zoom_data);
-        % axis xy tight;
-        % colormap(hInset);
-        % set(hInset, 'FontSize', 20);
-        % box on;
-        % title('Zoomed Range Doppler', 'FontSize', 20);
-
-        % 4. Draw connecting lines (use annotation, which needs normalized figure units)
-        % Rectangle corners in main axes (convert to normalized units)
-        % main_ax_pos = get(hInset, 'Position');
-        % % Lower-left and upper-right corners (in axes units)
-        % LL = [doppler_zoom(1), range_zoom(1)];
-        % UR = [doppler_zoom(2), range_zoom(2)];
-        % % Convert these to normalized figure units:
-        % ax = hInset;
-        % xl = xlim(ax); yl = ylim(ax);
-        % xrange = xl(2) - xl(1); yrange = yl(2) - yl(1);
-
-        % ll_norm = [(LL(1)-xl(1))/xrange*main_ax_pos(3)+main_ax_pos(1), ...
-        %            (LL(2)-yl(1))/yrange*main_ax_pos(4)+main_ax_pos(2)];
-        % ur_norm = [(UR(1)-xl(1))/xrange*main_ax_pos(3)+main_ax_pos(1), ...
-                   % (UR(2)-yl(1))/yrange*main_ax_pos(4)+main_ax_pos(2)];
-
-        % Inset corners (e.g., lower left and upper right)
-        % inset_ax_pos = get(hInset, 'Position');
-        % inset_ll = [inset_ax_pos(1), inset_ax_pos(2)];
-        % inset_ur = [inset_ax_pos(1)+inset_ax_pos(3), inset_ax_pos(2)+inset_ax_pos(4)];
-
-        % Draw lines: main LL to inset LL, main UR to inset UR
-        % annotation('line', [ll_norm(1), inset_ll(1)], [ll_norm(2), inset_ll(2)], 'Color', 'k', 'LineWidth', 1);
-        % annotation('line', [ur_norm(1), inset_ur(1)], [ur_norm(2), inset_ur(2)], 'Color', 'k', 'LineWidth', 1);
-
-        % Optionally draw a rectangle on the main plot to show zoom area
-        % axes(gca); % Back to main axes
-        % hold on;
-        % rectangle('Position', [doppler_zoom(1), range_zoom(1), ...
-        %     diff(doppler_zoom), diff(range_zoom)], ...
-        %     'EdgeColor', 'w', 'LineWidth', 2, 'LineStyle', '--');
-        % hold off;
 
         % Range Profile
         axes(hAx2); cla(hAx2);
@@ -197,18 +152,6 @@ function interactive_tx_bf_viewer_paged()
             title('Doppler Profile (dB)', 'FontSize', 16);
             ylabel('Power (dB)', 'FontSize', 16);
         else
-            % to_plot_max = squeeze(max(to_plot,[],1));
-            % middle_bin = 64;
-            % to_plot_max_exc_middle = to_plot_max([1:middle_bin-1 middle_bin+1:end], :); % [127 19]
-            % doppler_axis_exc_middle = doppler_axis([1:middle_bin-1 middle_bin+1:end]);  % [127,1]
-            % to_plot_max_ang = max(to_plot_max_exc_middle, [], 2);  % [127,1] (max over angles)
-            % 
-            % plot(doppler_axis_exc_middle, to_plot_max_ang, 'LineWidth', 1.0);
-            % % xlabel('Doppler (m/s)');
-            % ylabel('Max Power (linear)');
-            % title('Doppler Profile (excluding center bin)');
-
-
             plot(doppler_axis, mean(to_plot,1), 'LineWidth', 1.0);
             title('Doppler Profile (linear)', 'FontSize', 16);
             ylabel('Power (linear)', 'FontSize', 16);
@@ -224,7 +167,6 @@ function interactive_tx_bf_viewer_paged()
         else
             range_angle_stich_2d = range_angle_stich;
         end
-        % Build axes (same as your display_graph)
         indices_1D = 1:numel(range_axis);
         sine_theta = sind(anglesToSteer);
         cos_theta = sqrt(1-sine_theta.^2);
@@ -243,7 +185,6 @@ function interactive_tx_bf_viewer_paged()
 
     % Batch loader: clears previous batch_data to free memory
     function load_current_batch()
-        % Release previous batch data explicitly to save memory
         batch_data = cell(1, curr_batch_end-curr_batch_start+1);
         for i = 1:(curr_batch_end-curr_batch_start+1)
             frame_idx = curr_batch_start + i - 1;
