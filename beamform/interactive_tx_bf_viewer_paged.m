@@ -2,8 +2,8 @@ function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
     frames_per_batch = 120;
-    data_folder = './output/in_txbf_5_8_25_2/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    data_folder = './output/out_txbf_6_8_sl_22_fr_200/';
+    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
     % Get all frame file names
@@ -90,7 +90,7 @@ function interactive_tx_bf_viewer_paged()
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
-        max_range = 10; % meters
+        max_range = 200; % meters
         idx_range = find(range_axis <= max_range);
 
         to_plot = to_plot(idx_range, :);

@@ -5,11 +5,11 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'D:\Documents\Drone_Data\data\in_txbf_5_8_25_2';
+adc_data_folder = 'G:\RADAR_DATA\out_txbf_6_8_sl_22_fr_200';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_11/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10/'];
 calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -31,15 +31,7 @@ numAngle = params.NumAnglesToSweep;
 
 % clutter & noise handle
 dcOffsetRemoval = true;
-dopplerClutterRemoval = true;
-
-% rangeDopplerFFTmap_12 means new filter added
- 
-% paramsConfig = struct;
-% I shouldn't repopulate here
-% paramsConfig.anglesToSteer = -23.45;
-% paramsConfig.NumAnglesToSweep = 1;
-% paramsConfig.Chirp_Frame_BF = 0;       % Only frame-based supported
+dopplerClutterRemoval = false;
 
 % Calibration (RX phase)
 load(calib_file, 'calibResult');

@@ -5,7 +5,7 @@ function interactive_txbf_viewer_chunked()
     frames_per_batch = 120;
     frameChunk = 8; % <-- Number of consecutive frames to sum/average
     
-    data_folder = './output/in_txbf_5_8_25_2/';
+    data_folder = './output/out_txbf_6_8_sl_22_fr_200/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
@@ -110,7 +110,7 @@ function interactive_txbf_viewer_chunked()
 
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
-        max_range = 10; % meters
+        max_range = 200; % meters
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
         range_axis = range_axis(idx_range);

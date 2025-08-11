@@ -18,7 +18,7 @@ function run_tx_beamforming_capture(angles, profileFcn, paths)
     % clearvars -except profileFcn angles paths;
 
     %% User‑editable paths -------------------------------------------
-    paths.testRoot = 'in_txbf_5_8_25_2'; % the name of the test file/folder
+    paths.testRoot = 'out_txbf_6_8_sl_22_fr_200'; % the name of the test file/folder
     paths.outDir = ['./output/' paths.testRoot];
     paths.dllPath      = "C:\ti\mmwave_studio_02_01_01_00\mmWaveStudio\Clients\RtttNetClientController\RtttNetClientAPI.dll";
     paths.psLutPath    = "./input/calibrConfig/phaseShifterCalibration.mat";
