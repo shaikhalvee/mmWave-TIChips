@@ -82,7 +82,7 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     Num_Frames = 0;
     
     params.Start_Freq_GHz = 77;        % start freq (GHz)
-    params.Slope_MHzperus = 22;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
+    params.Slope_MHzperus = 7;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
     params.Idle_Time_us = 5;
     params.Tx_Start_Time_us = 0;
     params.Adc_Start_Time_us = 5;
