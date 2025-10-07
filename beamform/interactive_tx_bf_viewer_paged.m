@@ -2,7 +2,7 @@ function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
     frames_per_batch = 120;
-    data_folder = './output/out_txbf_6_8_sl_22_fr_200/';
+    data_folder = './output/out_txbf_25_8_sl_15_fr_200/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
@@ -12,9 +12,9 @@ function interactive_tx_bf_viewer_paged()
 
     % Load metadata arrays (axes, stich, params)
     config_data = load(fullfile(config_folder, 'config.mat'));
-    all_range_axis = config_data.all_range_axis;       
-    all_doppler_axis = config_data.all_doppler_axis;     
-    all_range_angle_stich = config_data.all_range_angle_stich;  
+    all_range_axis = config_data.all_range_axis;
+    all_doppler_axis = config_data.all_doppler_axis;
+    all_range_angle_stich = config_data.all_range_angle_stich;
 
     params_file = dir(fullfile(config_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in the given folder');
@@ -85,8 +85,9 @@ function interactive_tx_bf_viewer_paged()
 
         % Load from batch_data (should only be frames in current batch)
         D = batch_data{frameIdx};
-        RD_map = abs(D.RD_map); % [R D Rx Ang]
-        to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
+        RD_map = abs(D.RD_map); % [R D Ang]
+        % to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
+        to_plot = RD_map(:, :, angleIdx);
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 

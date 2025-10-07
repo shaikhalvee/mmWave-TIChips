@@ -5,8 +5,8 @@ function interactive_txbf_viewer_chunked()
     frames_per_batch = 120;
     frameChunk = 8; % <-- Number of consecutive frames to sum/average
     
-    data_folder = './output/out_txbf_6_8_sl_22_fr_200/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
+    data_folder = './output/out_txbf_25_8_sl_15_fr_200/';
+    frame_folder = [data_folder 'RD_SST/'];
     config_folder = data_folder;
 
     % Get all frame file names
@@ -102,7 +102,8 @@ function interactive_txbf_viewer_chunked()
             end
             RD_map = abs(D.RD_map); % [R D Rx Ang]
             % Average over Rx for the desired angle
-            to_add = mean(RD_map(:, :, :, angleIdx), 3);
+            % to_add = mean(RD_map(:, :, :, angleIdx), 3);
+            to_add = RD_map(:, :, angleIdx);
             sum_RD = sum_RD + to_add;
             count_RD = count_RD + 1;
         end

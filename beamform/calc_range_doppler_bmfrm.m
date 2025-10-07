@@ -82,7 +82,8 @@ function [RD_map, range_axis, ...
 
     % doppler_fft = [R, D, Rx, numAng] 
     % Combine RX (max or sum, single angle so no angle FFT)
-    RD_map = doppler_fft;
+    tempDoppFFT = doppler_fft(:,:,[2,4,6,8],:);
+    RD_map = squeeze(mean(tempDoppFFT, 3));
     % RD_map = squeeze(mean(abs(doppler_fft), 3)); % [range, doppler], for 1 ang, for multiple [range, doppler, numAng]
 
     % Axes
