@@ -85,9 +85,10 @@ function interactive_tx_bf_viewer_paged()
 
         % Load from batch_data (should only be frames in current batch)
         D = batch_data{frameIdx};
-        RD_map = abs(D.RD_map); % [R D Ang]
+        % RD_map = abs(D.RD_map); % [R D Ang]
+        RD_map_abs_sq = (abs(D.RD_map)).^2; % [R D Ang]
         % to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
-        to_plot = RD_map(:, :, angleIdx);
+        to_plot = RD_map_abs_sq(:, :, angleIdx);
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
