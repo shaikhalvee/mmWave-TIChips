@@ -1,12 +1,13 @@
-function interactive_tx_bf_viewer(data_folder)
+function interactive_tx_bf_viewer()
 % INTERACTIVE_TX_BF_VIEWER: Interactive viewer for TX beamforming post-processing results.
 
-    clearvars -except data_folder;
+    % clearvars -except data_folder;
+    %
+    % if nargin < 1
+    %     data_folder = uigetdir(pwd, 'Select output folder containing the saved MAT files');
+    % end
 
-    if nargin < 1
-        data_folder = uigetdir(pwd, 'Select output folder containing the saved MAT files');
-    end
-
+    data_folder = './output/txbf_test';
     % Load data
     d = dir(fullfile(data_folder, 'rangeDopplerFFTmap.mat'));
     assert(~isempty(d), 'Cannot find rangeDopplerFFTmap.mat in the given folder');
@@ -17,7 +18,7 @@ function interactive_tx_bf_viewer(data_folder)
     assert(~isempty(d2), 'Cannot find *_params.mat in the given folder');
     load(fullfile(data_folder, d2(1).name), 'params');
 
-    nFrames = numel(all_to_plot);
+    nFrames = numel(all_to_plot); % params.Num_Frames
     nAngles = params.NumAnglesToSweep;
     anglesToSteer = params.anglesToSteer;
     if nAngles == 1 && size(all_to_plot{1}, 4) == 1
@@ -39,7 +40,7 @@ function interactive_tx_bf_viewer(data_folder)
         'String', 'Frame: 1', 'HorizontalAlignment', 'left');
     hAngleLabel = uicontrol('Style', 'text', 'Position', [960 10 80 20], ...
         'String', sprintf('Angle: %d°', anglesToSteer(1)), 'HorizontalAlignment', 'left');
-    
+
     % Checkbox for each plot (bottom-left of each subplot)
     hAx1 = subplot(2,2,1); % Range-Doppler Map
     hCB1 = uicontrol('Style', 'checkbox', 'String', 'Log (dB)', ...

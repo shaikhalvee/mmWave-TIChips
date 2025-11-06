@@ -1,4 +1,4 @@
-showData = 0;
+
 
 mmwave_json_file_name = GET_MMWAVE_SETUP_JSON_FILE();
 adc_bin_file_name   = GET_ADC_DATA_BIN_FILE();

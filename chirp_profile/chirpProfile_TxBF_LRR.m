@@ -78,18 +78,18 @@ function [params] = chirpProfile_TxBF_LRR(angles)
 
     %% Chirp/Profile parameters for LRR
     % Typically, LRR uses lower slope => smaller bandwidth => can detect out to ~300m
-    nchirp_loops = 64;
-    Num_Frames = 50;
+    nchirp_loops = 128;
+    Num_Frames = 0;
     
     params.Start_Freq_GHz = 77;        % start freq (GHz)
     params.Slope_MHzperus = 7;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
-    params.Idle_Time_us = 3;
+    params.Idle_Time_us = 5;
     params.Tx_Start_Time_us = 0;
     params.Adc_Start_Time_us = 5;
-    params.Ramp_End_Time_us = 23;      % relatively short ramp => longer max range
-    params.Sampling_Rate_ksps = 15000; % 15 Msps
-    params.Samples_per_Chirp = 256;    
-    params.Rx_Gain_dB = 30;
+    params.Ramp_End_Time_us = 40;      % relatively short ramp => longer max range
+    params.Sampling_Rate_ksps = 16000; % 15 Msps
+    params.Samples_per_Chirp = 512;    
+    params.Rx_Gain_dB = 52;
 
     % range resolution: 1.255 m
     
@@ -137,7 +137,8 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     end
     
     % Frame repetition time in ms
-    params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
+    % params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
+    params.Frame_Repetition_Period_ms = 200;
 
     %% Algorithm / FFT parameters
     params.ApplyRangeDopplerWind = 1;
@@ -146,10 +147,10 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     %% Derived parameters
     chirpRampTime = params.Samples_per_Chirp / (params.Sampling_Rate_ksps / 1e3);
     chirpBandwidth = params.Slope_MHzperus(1) * chirpRampTime;  % in MHz
-    rangeResolution = speedOfLight / 2 / (chirpBandwidth * 1e6);
-    params.rangeBinSize = rangeResolution * params.Samples_per_Chirp / params.rangeFFTSize;
+    params.rangeResolution = speedOfLight / 2 / (chirpBandwidth * 1e6);
+    params.rangeBinSize = params.rangeResolution * params.Samples_per_Chirp / params.rangeFFTSize;
     params.f_s = params.Sampling_Rate_ksps * 1e3; % ADC sampling rate (Hz)
-    params.maxRange = (params.f_c * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
+    params.maxRange = (params.f_s * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
 
     params.T_chirp = params.Chirp_Duration_us * 1e-6; % seconds
     params.lambda = speedOfLight / (params.Start_Freq_GHz * 1e9); % wavelength (m)

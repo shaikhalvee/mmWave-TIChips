@@ -83,7 +83,7 @@ function [params] = chirpProfile_TxBF_USRR(angles)
     % These set up how each chirp is generated, including frequency slope, idle time,
     % ramp time, sampling rate, and more. "nchirp_loops" is how many times each set of
     % chirps is repeated per frame. "Num_Frames" is how many frames to capture in total.
-    nchirp_loops = 64;    % number of chirp loops (repetitions)
+    nchirp_loops = 128;    % number of chirp loops (repetitions)
     Num_Frames = 0;       % number of frames
 
     params.Start_Freq_GHz = 77;                % Starting frequency for the chirp (GHz)
@@ -92,9 +92,9 @@ function [params] = chirpProfile_TxBF_USRR(angles)
     params.Tx_Start_Time_us = 0;               % TX start time offset (µs)
     params.Adc_Start_Time_us = 6;              % ADC start time (µs)
     params.Ramp_End_Time_us = 40;              % Ramp end time (µs)
-    params.Sampling_Rate_ksps = 8000;          % Sampling rate (ksps = kilo-samples/second)
-    params.Samples_per_Chirp = 256;            % Number of ADC samples taken during each chirp
-    params.Rx_Gain_dB = 52;                    % RX gain in dB
+    params.Sampling_Rate_ksps = 16000;          % Sampling rate (ksps = kilo-samples/second)
+    params.Samples_per_Chirp = 512;            % Number of ADC samples taken during each chirp
+    params.Rx_Gain_dB = 24;                    % RX gain in dB [24, 52]
 
     % range resolution: 0.0593m
 
@@ -171,7 +171,7 @@ function [params] = chirpProfile_TxBF_USRR(angles)
     params.rangeResolution = speedOfLight / 2 / (params.chirpBandwidth * 1e6);
     params.rangeBinSize = params.rangeResolution * params.Samples_per_Chirp / params.rangeFFTSize;
     params.f_s = params.Sampling_Rate_ksps * 1e3; % ADC sampling rate (Hz)
-    params.maxRange = (params.f_c * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
+    params.maxRange = (params.f_s * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
 
     params.T_chirp = params.Chirp_Duration_us * 1e-6; % seconds
     params.lambda = speedOfLight / (params.Start_Freq_GHz * 1e9); % wavelength (m)

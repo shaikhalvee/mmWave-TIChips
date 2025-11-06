@@ -85,18 +85,19 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     %% Chirp/Profile parameters
     % The radar chirp is defined by slope, idle time, ramp end, sampling, etc.
     nchirp_loops = 128;        % how many times each chirp is repeated in a frame
-    Num_Frames = 50;           % how many frames we capture
+    Num_Frames = 0;           % how many frames we capture
     
     params.Start_Freq_GHz = 77;    % Start frequency in GHz
     % The slope is set to '8.43 * 3' => 25.29 MHz/us total
-    params.Slope_MHzperus = 8.43 * 3; 
+    params.Slope_MHzperus = 8.43 * 3;
+     
     params.Idle_Time_us = 5;       
     params.Tx_Start_Time_us = 0;   
     params.Adc_Start_Time_us = 6;  
-    params.Ramp_End_Time_us = 35;  
-    params.Sampling_Rate_ksps = 9000;  
-    params.Samples_per_Chirp = 256;    
-    params.Rx_Gain_dB = 25;          % Received gain in dB
+    params.Ramp_End_Time_us = 40;  
+    params.Sampling_Rate_ksps = 16000;  
+    params.Samples_per_Chirp = 512;    
+    params.Rx_Gain_dB = 24;          % Received gain in dB
 
     % range resolution: 0.2 m
 
@@ -169,7 +170,7 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     params.rangeBinSize = rangeResolution * params.Samples_per_Chirp / params.rangeFFTSize;
     
     params.f_s = params.Sampling_Rate_ksps * 1e3; % ADC sampling rate (Hz)
-    params.maxRange = (params.f_c * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
+    params.maxRange = (params.f_s * speedOfLight) / (2 * params.Slope_MHzperus * 1e12); % meters
 
     params.T_chirp = params.Chirp_Duration_us * 1e-6; % seconds
     params.lambda = speedOfLight / (params.Start_Freq_GHz * 1e9); % wavelength (m)
