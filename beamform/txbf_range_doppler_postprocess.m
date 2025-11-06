@@ -9,7 +9,7 @@ adc_data_folder = 'G:\RADAR_DATA\out_txbf_25_8_sl_15_fr_200';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_11/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10/'];
 calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -31,7 +31,7 @@ numAngle = params.NumAnglesToSweep;
 
 % clutter & noise handle
 dcOffsetRemoval = true;
-dopplerClutterRemoval = true;
+dopplerClutterRemoval = false;
 
 % Calibration (RX phase)
 load(calib_file, 'calibResult');
