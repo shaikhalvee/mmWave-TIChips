@@ -7,7 +7,7 @@ function interactive_tx_bf_viewer()
     %     data_folder = uigetdir(pwd, 'Select output folder containing the saved MAT files');
     % end
 
-    data_folder = './output/out_txbf_25_8_sl_15_fr_200';
+    data_folder = './output/txbf_test';
     % Load data
     d = dir(fullfile(data_folder, 'rangeDopplerFFTmap.mat'));
     assert(~isempty(d), 'Cannot find rangeDopplerFFTmap.mat in the given folder');

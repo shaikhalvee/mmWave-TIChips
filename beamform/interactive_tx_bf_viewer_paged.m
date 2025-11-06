@@ -2,7 +2,7 @@ function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
     frames_per_batch = 120;
-    data_folder = './output/out_txbf_25_8_sl_15_fr_200/';
+    data_folder = './output/out_txbf_2_11_sl_8_stbl_mov_2/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
@@ -33,21 +33,21 @@ function interactive_tx_bf_viewer_paged()
     % UI setup
     hFig = figure('Name', 'TX Beamforming Interactive Viewer (Paged)', 'NumberTitle', 'off', 'Position', [100 100 1200 800]);
     hNext = uicontrol('Style', 'pushbutton', 'String', 'Next', ...
-        'Position', [550 10 80 25], 'Callback', @next_batch);
+        'Position', [570 20 80 25], 'Callback', @next_batch);
     hPrev = uicontrol('Style', 'pushbutton', 'String', 'Previous', ...
-        'Position', [20 10 80 25], 'Callback', @prev_batch);
+        'Position', [20 20 80 25], 'Callback', @prev_batch);
 
     batch_frames = curr_batch_end - curr_batch_start + 1;
     hFrame = uicontrol('Style', 'slider', 'Min', 1, 'Max', batch_frames, ...
         'Value', 1, 'SliderStep', [1/max(1,batch_frames-1), 1/max(1,batch_frames-1)], ...
-        'Position', [120 10 350 20]);
+        'Position', [120 20 350 20]);
     hAngle = uicontrol('Style', 'slider', 'Min', 1, 'Max', nAngles, ...
         'Value', 1, 'SliderStep', [1/max(1,nAngles-1), 1/max(1,nAngles-1)], ...
-        'Position', [650 10 350 20]);
+        'Position', [670 20 350 20]);
 
-    hFrameLabel = uicontrol('Style', 'text', 'Position', [470 10 80 20], ...
+    hFrameLabel = uicontrol('Style', 'text', 'Position', [470 20 100 20], ...
         'String', sprintf('Frame: %d/%d', curr_batch_start, total_frames), 'HorizontalAlignment', 'left');
-    hAngleLabel = uicontrol('Style', 'text', 'Position', [1000 10 80 20], ...
+    hAngleLabel = uicontrol('Style', 'text', 'Position', [1020 20 100 20], ...
         'String', sprintf('Angle: %d°', anglesToSteer(1)), 'HorizontalAlignment', 'left');
 
     hAx1 = subplot(2,2,1);
@@ -92,7 +92,7 @@ function interactive_tx_bf_viewer_paged()
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
-        max_range = 200; % meters
+        max_range = 100; % meters
         idx_range = find(range_axis <= max_range);
 
         to_plot = to_plot(idx_range, :);
@@ -195,7 +195,7 @@ function interactive_tx_bf_viewer_paged()
         % Doppler Profile
         axes(hAx3); cla(hAx3);
         if isLog3
-            plot(doppler_axis, log10(max(to_plot,1)+eps), 'LineWidth', 1.0);
+            plot(doppler_axis, 20*log10(max(to_plot, 1)+eps), 'LineWidth', 1.0);
             title('Doppler Profile (dB)', 'FontSize', 16);
             ylabel('Power (dB)', 'FontSize', 16);
         else

@@ -90,13 +90,13 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     params.Start_Freq_GHz = 77;    % Start frequency in GHz
     % The slope is set to '8.43 * 3' => 25.29 MHz/us total
     params.Slope_MHzperus = 8.43 * 3;
-     
+
     params.Idle_Time_us = 5;       
     params.Tx_Start_Time_us = 0;   
     params.Adc_Start_Time_us = 6;  
-    params.Ramp_End_Time_us = 40;  
-    params.Sampling_Rate_ksps = 16000;  
-    params.Samples_per_Chirp = 512;    
+    params.Ramp_End_Time_us = 40;
+    params.Sampling_Rate_ksps = 16000;
+    params.Samples_per_Chirp = 512;
     params.Rx_Gain_dB = 24;          % Received gain in dB
 
     % range resolution: 0.2 m
