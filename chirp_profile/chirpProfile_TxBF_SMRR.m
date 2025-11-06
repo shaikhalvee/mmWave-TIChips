@@ -125,7 +125,7 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     params.numSubFrames = 1;
 
     if params.Chirp_Frame_BF == 0
-        % Frame-based beam steering config
+        % Frame-based beam steering config. Always choose frame based.
         params.SF1ChirpStartIdx = 0;
         params.SF1NumChirps = 1;
         params.SF1NumLoops = nchirp_loops;
@@ -174,7 +174,14 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
 
     params.T_chirp = params.Chirp_Duration_us * 1e-6; % seconds
     params.lambda = speedOfLight / (params.Start_Freq_GHz * 1e9); % wavelength (m)
-    params.velocityResolution = params.lambda / (2 * params.nchirp_loops * params.NumAnglesToSweep * params.T_chirp);
-    params.maxVelocity = params.lambda / (4 * params.T_chirp);
+    if params.Chirp_Frame_BF == 0   % frame based beam steering
+        params.Coherent_proc_interval = params.nchirp_loops * params.T_chirp;
+        params.velocityResolution = params.lambda / (2 * params.Coherent_proc_interval);
+        params.maxVelocity = params.lambda / (4 * params.T_chirp);
+    else    % chirp based beam steering
+        params.Coherent_proc_interval = params.NumAnglesToSweep * params.nchirp_loops * params.T_chirp;
+        params.velocityResolution = params.lambda / (2 * params.Coherent_proc_interval);
+        params.maxVelocity = params.lambda / (4 * params.NumAnglesToSweep * params.T_chirp);
+    end
     
 end

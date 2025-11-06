@@ -109,27 +109,24 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     params.d_BF = d;
 
     %% Advanced frame config
-    params.Chirp_Frame_BF = 0;  % frame-based beam steering
+    params.Chirp_Frame_BF = 0;  % frame-based beam steering. Always put frame base beam steering
     params.numSubFrames = 1;
 
     if params.Chirp_Frame_BF == 0
         params.SF1ChirpStartIdx = 0;
         params.SF1NumChirps = 1;
         params.SF1NumLoops = nchirp_loops;
-        params.SF1BurstPeriodicity = ...
-            (params.Ramp_End_Time_us + params.Idle_Time_us) * nchirp_loops / params.Dutycycle * 200;
+        params.SF1BurstPeriodicity = (params.Chirp_Duration_us) * nchirp_loops / params.Dutycycle * 200;
         params.SF1ChirpStartIdxOffset = 1;
         params.SF1NumBurst = params.NumAnglesToSweep;
         params.SF1NumBurstLoops = 1;
-        params.SF1SubFramePeriodicity = ...
-            params.SF1BurstPeriodicity * params.NumAnglesToSweep;
+        params.SF1SubFramePeriodicity = params.SF1BurstPeriodicity * params.NumAnglesToSweep;
     else
         % chirp-based alternative if desired
         params.SF1ChirpStartIdx = 0;
         params.SF1NumChirps = params.NumAnglesToSweep;
         params.SF1NumLoops = nchirp_loops;
-        params.SF1BurstPeriodicity = ...
-            (params.Ramp_End_Time_us + params.Idle_Time_us) * nchirp_loops / params.Dutycycle * 200 * params.NumAnglesToSweep;
+        params.SF1BurstPeriodicity = (params.Chirp_Duration_us) * nchirp_loops / params.Dutycycle * 200 * params.NumAnglesToSweep;
         params.SF1ChirpStartIdxOffset = 1;
         params.SF1NumBurst = 1;
         params.SF1NumBurstLoops = 1;
@@ -145,7 +142,7 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     params.rangeFFTSize = 2^ceil(log2(params.Samples_per_Chirp));
 
     %% Derived parameters
-    chirpRampTime = params.Samples_per_Chirp / (params.Sampling_Rate_ksps / 1e3);
+    chirpRampTime = params.Samples_per_Chirp / (params.Sampling_Rate_ksps / 1e3); % in us
     chirpBandwidth = params.Slope_MHzperus(1) * chirpRampTime;  % in MHz
     params.rangeResolution = speedOfLight / 2 / (chirpBandwidth * 1e6);
     params.rangeBinSize = params.rangeResolution * params.Samples_per_Chirp / params.rangeFFTSize;
@@ -154,7 +151,14 @@ function [params] = chirpProfile_TxBF_LRR(angles)
 
     params.T_chirp = params.Chirp_Duration_us * 1e-6; % seconds
     params.lambda = speedOfLight / (params.Start_Freq_GHz * 1e9); % wavelength (m)
-    params.velocityResolution = params.lambda / (2 * params.nchirp_loops * params.NumAnglesToSweep * params.T_chirp);
-    params.maxVelocity = params.lambda / (4 * params.T_chirp);
+    if params.Chirp_Frame_BF == 0   % frame based beam steering
+        params.Coherent_proc_interval = params.nchirp_loops * params.T_chirp;
+        params.velocityResolution = params.lambda / (2 * params.Coherent_proc_interval);
+        params.maxVelocity = params.lambda / (4 * params.T_chirp);
+    else    % chirp based beam steering
+        params.Coherent_proc_interval = params.NumAnglesToSweep * params.nchirp_loops * params.T_chirp;
+        params.velocityResolution = params.lambda / (2 * params.Coherent_proc_interval);
+        params.maxVelocity = params.lambda / (4 * params.NumAnglesToSweep * params.T_chirp);
+    end
     
 end
