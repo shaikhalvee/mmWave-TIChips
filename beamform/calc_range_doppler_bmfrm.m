@@ -51,7 +51,7 @@ function [RD_map, range_axis, ...
 
     % apply range-domain windowing
     radar_data_win = adcRadarData_txbf .* reshape(range_win,[],1,1,1);
-    
+
     % Range FFT (dim 1)
     range_fft    = fft(radar_data_win, paramsConfig.rangeFFTSize, 1);  % [range, chirps, Rx, angles]
 
@@ -71,7 +71,7 @@ function [RD_map, range_axis, ...
         % Replace with mean
         % range_fft_win = range_fft_win - mean(range_fft_win, 2)/2;
     end
-    
+
     % Doppler FFT (dim 2)
     doppler_fft   = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
 
@@ -80,7 +80,7 @@ function [RD_map, range_axis, ...
         doppler_fft(:,:,rx,:) = doppler_fft(:,:,rx,:) * exp(-1i * BF_MIMO_ref(rx) * pi/180);
     end
 
-    % doppler_fft = [R, D, Rx, numAng] 
+    % doppler_fft = [R, D, Rx, numAng]
     % Combine RX (max or sum, single angle so no angle FFT)
     tempDoppFFT = doppler_fft(:,:,:,:);
     RD_map = squeeze(mean(tempDoppFFT, 3));

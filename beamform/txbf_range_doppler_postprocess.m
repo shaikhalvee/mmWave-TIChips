@@ -48,7 +48,7 @@ all_to_plot = {};
 
 frameCounter = 1;
 
-for i_file = 1:numel(fileIdx_unique) 
+for i_file = 1:numel(fileIdx_unique)
     [fileNameStruct] = getBinFileNames_withIdx(adc_data_folder, fileIdx_unique{i_file});
     [numValidFrames, ~] = getValidNumFrames(fullfile(adc_data_folder, fileNameStruct.masterIdxFile));
 

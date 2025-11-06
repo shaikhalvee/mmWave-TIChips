@@ -94,7 +94,7 @@ function [params] = chirpProfile_TxBF_USRR(angles)
     params.Ramp_End_Time_us = 40;              % Ramp end time (µs)
     params.Sampling_Rate_ksps = 16000;          % Sampling rate (ksps = kilo-samples/second)
     params.Samples_per_Chirp = 512;            % Number of ADC samples taken during each chirp
-    params.Rx_Gain_dB = 24;                    % RX gain in dB [24, 52]
+    params.Rx_Gain_dB = 24;                    % RX gain in dB
 
     % range resolution: 0.0593m
 
