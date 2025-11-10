@@ -56,6 +56,8 @@ function interactive_txbf_viewer_gated()
     foldingWin.exists = false;
     foldingWin.jmin   = 2;   % folding search range, per paper
     foldingWin.jmax   = 20;
+    foldingWin.fracOrder = 0.5; % FrFT order slider default
+    foldingWin.logFrac = true; % Plot fractional spectrum in dB by default
 
 
     % ===================== UI: MAIN WINDOW =====================
@@ -87,8 +89,11 @@ function interactive_txbf_viewer_gated()
 
     % Add button to open second window
     hOpenDrone = uicontrol('Style','pushbutton','String','Drone Doppler…', ...
-        'Units','normalized','Position',[0.37 0.04 0.12 0.04], ...
+        'Units','normalized','Position',[0.32 0.04 0.12 0.04], ...
         'Callback',@openDroneWindow);
+    uicontrol('Style','pushbutton','String','Folding / FrFT…', ...
+        'Units','normalized','Position',[0.46 0.04 0.12 0.04], ...
+        'Callback',@openFoldingWindow);
 
     % Axes + toggles
     hAx1 = subplot(2,2,1);
@@ -310,6 +315,9 @@ function interactive_txbf_viewer_gated()
     function openDroneWindow(~,~)
         if droneWin.exists && isvalid(droneWin.hFig2)
             figure(droneWin.hFig2);
+            if ~foldingWin.exists || ~isvalid(foldingWin.hFig3)
+                openFoldingWindow();
+            end 
             return;
         end
 
@@ -483,21 +491,38 @@ function interactive_txbf_viewer_gated()
         end
 
         % Create a slim, dedicated figure for folding values only
-        foldingWin.hFig3 = figure('Name','Folding Values (per range)', ...
-                                  'NumberTitle','off', 'Position',[220 220 900 260]);
+        % foldingWin.hFig3 = figure('Name','Folding Values (per range)', ...
+        %                           'NumberTitle','off', 'Position',[220 220 900 260]);
+
+        % Create a dedicated figure that will host folding, FrFT spectrum and controls
+        foldingWin.hFig3 = figure('Name','Folding & Fractional Spectrum', ...
+            'NumberTitle','off', 'Position',[220 220 950 620], ...
+            'CloseRequestFcn',@closeFoldingWindow);
 
         % One axis that fills most of the figure
-        foldingWin.ax = axes('Parent', foldingWin.hFig3, 'Position',[0.08 0.22 0.88 0.72]);
+        % foldingWin.ax = axes('Parent', foldingWin.hFig3, 'Position',[0.08 0.22 0.88 0.72]);
+        tFold = tiledlayout(foldingWin.hFig3,2,1,'Padding','compact','TileSpacing','compact');
+        foldingWin.ax = nexttile(tFold,1);
+        foldingWin.axFrft = nexttile(tFold,2);
 
         % Optional controls to tweak jmin/jmax
-        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.08 0.03 0.05 0.08],...
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.08 0.02 0.05 0.05],...
             'String','j_{min}','HorizontalAlignment','right');
-        foldingWin.edJmin = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.14 0.05 0.06 0.07],...
+        foldingWin.edJmin = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.14 0.02 0.06 0.05],...
             'String',num2str(foldingWin.jmin),'Callback',@(s,~) setFoldParams());
-        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.22 0.03 0.05 0.08],...
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.22 0.02 0.05 0.05],...
             'String','j_{max}','HorizontalAlignment','right');
-        foldingWin.edJmax = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.28 0.05 0.06 0.07],...
+        foldingWin.edJmax = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.28 0.02 0.06 0.05],...
             'String',num2str(foldingWin.jmax),'Callback',@(s,~) setFoldParams());
+
+        % FrFT slider and label
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.40 0.02 0.10 0.05],...
+            'String','FrFT order','HorizontalAlignment','right');
+        foldingWin.slFrft = uicontrol(foldingWin.hFig3,'Style','slider','Units','normalized',...
+            'Position',[0.51 0.025 0.25 0.04],'Min',0,'Max',1,'Value',foldingWin.fracOrder,...
+            'SliderStep',[0.1 0.1],'Callback',@(s,~) setFracOrder(s));
+        foldingWin.txtFrft = uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.78 0.02 0.15 0.05],...
+            'String',sprintf('Order: %.1f',foldingWin.fracOrder),'HorizontalAlignment','left');
 
         foldingWin.exists = true;
         updateFoldingWindow();
@@ -508,6 +533,24 @@ function interactive_txbf_viewer_gated()
             set(foldingWin.edJmin,'String',num2str(foldingWin.jmin));
             set(foldingWin.edJmax,'String',num2str(foldingWin.jmax));
             updateFoldingWindow();
+        end
+
+        function setFracOrder(src)
+            val = get(src,'Value');
+            val = round(val*10)/10; % snap to 0.1 steps
+            foldingWin.fracOrder = max(0, min(1, val));
+            if isvalid(foldingWin.slFrft)
+                set(foldingWin.slFrft,'Value',foldingWin.fracOrder);
+            end
+            if isfield(foldingWin,'txtFrft') && isvalid(foldingWin.txtFrft)
+                set(foldingWin.txtFrft,'String',sprintf('Order: %.1f',foldingWin.fracOrder));
+            end
+            updateFoldingWindow();
+        end
+
+        function closeFoldingWindow(src, ~)
+            foldingWin.exists = false;
+            delete(src);
         end
     end
 
@@ -524,6 +567,7 @@ function interactive_txbf_viewer_gated()
 
         % Assemble the same to_plot & axes (linear power)
         D = batch_data{frameIdx};
+        RD_map_slice_complex = D.RD_map(:,:,angleIdx); % retain complex data
         RD_map_abs = abs(D.RD_map).^2;      % [R D Ang]
         % to_plot = RD_map_abs(:,:,angleIdx); % [R D]
         to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D]
@@ -534,6 +578,7 @@ function interactive_txbf_viewer_gated()
         max_range = 100;
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
+        RD_map_slice_complex = RD_map_slice_complex(idx_range, :);
         range_axis = range_axis(idx_range);
 
         % Compute/refresh the *current* gate (only to draw vertical lines here)
@@ -544,7 +589,7 @@ function interactive_txbf_viewer_gated()
         % Folding values per range bin (paper definition)
         [P_fold, ~] = compute_range_folding_values(to_plot, foldingWin.jmin, foldingWin.jmax);
 
-        % Draw
+        % Draw folding values per range bin
         axes(foldingWin.ax); cla(foldingWin.ax);
         plot(range_axis, P_fold, 'LineWidth',1.3); grid on;
         xlabel('Range (m)');
@@ -556,6 +601,48 @@ function interactive_txbf_viewer_gated()
         plot([gate_center-half_w gate_center-half_w], yl, '--');
         plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off;
+
+        % Fractional Fourier spectrum of gated Doppler profile
+        axes(foldingWin.axFrft); cla(foldingWin.axFrft);
+        if isfield(foldingWin,'txtFrft') && isvalid(foldingWin.txtFrft)
+            set(foldingWin.txtFrft,'String',sprintf('Order: %.1f',foldingWin.fracOrder));
+        end
+        if isfield(foldingWin,'cbFrftLog') && isvalid(foldingWin.cbFrftLog)
+            set(foldingWin.cbFrftLog,'Value',foldingWin.logFrac);
+        end
+        doppler_gated_complex = mean(RD_map_slice_complex(gate_idx,:),1);
+        doppler_power = abs(doppler_gated_complex).^2;
+        if isempty(doppler_gated_complex)
+            frft_spec = zeros(size(doppler_axis));
+            doppler_power = zeros(size(doppler_axis));
+        else
+            frft_spec = abs(frft(doppler_gated_complex(:), foldingWin.fracOrder)).^2;
+            frft_spec = frft_spec(:).';
+            if numel(frft_spec) ~= numel(doppler_axis)
+                frft_spec = interp1(linspace(doppler_axis(1), doppler_axis(end), numel(frft_spec)), frft_spec, doppler_axis, 'linear', 'extrap');
+            end
+        end
+
+        if foldingWin.logFrac
+            doppler_plot = 10*log10(max(doppler_power, eps));
+            frft_plot = 10*log10(max(frft_spec, eps));
+            yLabelStr = 'Power (dB)';
+            titleStr = 'Doppler vs Fractional Fourier Spectrum (dB)';
+        else
+            doppler_plot = doppler_power;
+            frft_plot = frft_spec;
+            yLabelStr = 'Power (linear)';
+            titleStr = 'Doppler vs Fractional Fourier Spectrum (linear)';
+        end
+
+        plot(doppler_axis, doppler_plot, 'LineWidth',1.3, 'DisplayName','Existing Doppler spectrum'); hold on;
+        plot(doppler_axis, frft_plot, 'LineWidth',1.3, 'DisplayName',sprintf('FrFT spectrum (order %.1f)', foldingWin.fracOrder));
+        hold off;
+        legend('Location','best');
+        grid on;
+        xlabel('Velocity (m/s)');
+        ylabel(yLabelStr);
+        title(titleStr);
     end
 
     function X = angslice(M, idx)

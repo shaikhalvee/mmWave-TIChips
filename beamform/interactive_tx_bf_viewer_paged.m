@@ -1,7 +1,7 @@
 function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
-    frames_per_batch = 150;
+    frames_per_batch = 200;
     data_folder = './output/txbf_in_hov/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
