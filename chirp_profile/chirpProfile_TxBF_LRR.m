@@ -99,8 +99,7 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     params.Dutycycle = 0.5;
     params.Chirp_Duration_us = params.Ramp_End_Time_us + params.Idle_Time_us;
     
-    params.NumberOfSamplesPerChannel = ...
-        params.Samples_per_Chirp * nchirp_loops * params.NumAnglesToSweep * params.Num_Frames;
+    params.NumberOfSamplesPerChannel = params.Samples_per_Chirp * nchirp_loops * params.NumAnglesToSweep * params.Num_Frames;
 
     %% Effective spacing factor
     centerFrequency = params.Start_Freq_GHz + ...
@@ -134,8 +133,8 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     end
     
     % Frame repetition time in ms
-    % params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
-    params.Frame_Repetition_Period_ms = 200;
+    params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
+    % params.Frame_Repetition_Period_ms = 200;
 
     %% Algorithm / FFT parameters
     params.ApplyRangeDopplerWind = 1;

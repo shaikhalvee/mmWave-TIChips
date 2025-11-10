@@ -5,7 +5,7 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'G:\RADAR_DATA\out_txbf_25_8_sl_15_fr_200';
+adc_data_folder = 'G:\RADAR_DATA\txbf_in_0';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];

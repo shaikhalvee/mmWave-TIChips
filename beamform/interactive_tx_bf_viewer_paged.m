@@ -1,8 +1,8 @@
 function interactive_tx_bf_viewer_paged()
 % INTERACTIVE_TX_BF_VIEWER_PAGED: Paged viewer for huge per-frame TXBF results.
 
-    frames_per_batch = 120;
-    data_folder = './output/out_txbf_2_11_sl_8_stbl_mov_2/';
+    frames_per_batch = 150;
+    data_folder = './output/txbf_in_hov/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
@@ -16,12 +16,32 @@ function interactive_tx_bf_viewer_paged()
     all_doppler_axis = config_data.all_doppler_axis;
     all_range_angle_stich = config_data.all_range_angle_stich;
 
+    % Normalize each entry to have angle as 2nd dim (Nrange x Nangle, with Nangle>=1)
+    for k = 1:numel(all_range_angle_stich)
+        A = all_range_angle_stich{k};
+        if isvector(A)
+            % Make it Nrange x 1
+            all_range_angle_stich{k} = A(:);
+        elseif ndims(A) == 3
+            % Your code later uses squeeze(..., :, :, 1); keep 2D Nrange x Nangle
+            all_range_angle_stich{k} = squeeze(A(:,:,1));
+            % else: already 2D => leave as is
+        end
+    end
+
     params_file = dir(fullfile(config_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in the given folder');
     params = load(fullfile(config_folder, params_file(1).name), 'params');
     params = params.params;
     anglesToSteer = params.anglesToSteer;
     nAngles = params.NumAnglesToSweep;
+
+    nAngles = max(1, nAngles);                     % safety
+    anglesToSteer = anglesToSteer(:).';            % row vector for indexing
+    if numel(anglesToSteer) ~= nAngles
+        % Guard against mismatch in config
+        anglesToSteer = anglesToSteer(1:min(end,nAngles));
+    end
 
     % Batch state
     curr_batch_start = 1;
@@ -44,6 +64,10 @@ function interactive_tx_bf_viewer_paged()
     hAngle = uicontrol('Style', 'slider', 'Min', 1, 'Max', nAngles, ...
         'Value', 1, 'SliderStep', [1/max(1,nAngles-1), 1/max(1,nAngles-1)], ...
         'Position', [670 20 350 20]);
+    % If only one angle, lock the slider
+    if nAngles == 1
+        set(hAngle, 'Enable', 'off');   % or: set(hAngle,'Visible','off');
+    end
 
     hFrameLabel = uicontrol('Style', 'text', 'Position', [470 20 100 20], ...
         'String', sprintf('Frame: %d/%d', curr_batch_start, total_frames), 'HorizontalAlignment', 'left');
@@ -73,7 +97,9 @@ function interactive_tx_bf_viewer_paged()
 
     function updatePlots(~,~)
         frameIdx = round(get(hFrame, 'Value'));
-        angleIdx = round(get(hAngle, 'Value'));
+        % angleIdx = round(get(hAngle, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
+        
         isLog1 = get(hCB1, 'Value');
         isLog2 = get(hCB2, 'Value');
         isLog3 = get(hCB3, 'Value'); 
@@ -81,18 +107,21 @@ function interactive_tx_bf_viewer_paged()
         % Global frame index
         globalFrameIdx = curr_batch_start + frameIdx - 1;
         set(hFrameLabel, 'String', sprintf('Frame: %d/%d', globalFrameIdx, total_frames));
-        set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(angleIdx)));
+        % set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(angleIdx)));
+        set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(min(angleIdx, numel(anglesToSteer)))));
+
 
         % Load from batch_data (should only be frames in current batch)
         D = batch_data{frameIdx};
         % RD_map = abs(D.RD_map); % [R D Ang]
-        RD_map_abs_sq = (abs(D.RD_map)).^2; % [R D Ang]
+        RD_map_abs_sq = (abs(D.RD_map)).^2; % [R D Ang] or [R x D]
         % to_plot = mean(RD_map(:, :, :, angleIdx), 3); % average over Rx
-        to_plot = RD_map_abs_sq(:, :, angleIdx);
+        % to_plot = RD_map_abs_sq(:, :, angleIdx); 
+        to_plot = angslice(RD_map_abs_sq, angleIdx);   % always [R x D]
         range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
-        max_range = 100; % meters
+        max_range = 20; % meters
         idx_range = find(range_axis <= max_range);
 
         to_plot = to_plot(idx_range, :);
@@ -221,26 +250,79 @@ function interactive_tx_bf_viewer_paged()
         % Range-Azimuth
         axes(hAx4); cla(hAx4);
         % Assume range_angle_stich: (range, angle) or (range, angle, ...)
+        % if ~ismatrix(range_angle_stich)
+        %     range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
+        % else
+        %     range_angle_stich_2d = range_angle_stich;
+        % end
+        % range_angle_stich_2d = range_angle_stich_2d(:,:);
+        
+        % % Build axes (same as your display_graph)
+        % indices_1D = 1:numel(range_axis);
+        % sine_theta = sind(anglesToSteer);
+        % cos_theta = sqrt(1-sine_theta.^2);
+        % [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
+        % [~, cos_theta_mat] = meshgrid(range_axis(indices_1D), cos_theta);
+        % x_axis = R_mat.*cos_theta_mat;
+        % y_axis = R_mat.*sine_theta_mat;
+        % range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
+        % surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
+        % view(0, 60);
+        % xlabel('meters'); ylabel('meters');
+        % title('Stich range/azimuth');
+        % axis tight;
+        % colorbar;
+
+        % 1) Normalize RA to 2-D [Nrange x Nangle]
         if ~ismatrix(range_angle_stich)
             range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
         else
             range_angle_stich_2d = range_angle_stich;
         end
-        % Build axes (same as your display_graph)
-        indices_1D = 1:numel(range_axis);
-        sine_theta = sind(anglesToSteer);
-        cos_theta = sqrt(1-sine_theta.^2);
-        [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
-        [~, cos_theta_mat] = meshgrid(range_axis(indices_1D), cos_theta);
-        x_axis = R_mat.*cos_theta_mat;
-        y_axis = R_mat.*sine_theta_mat;
-        range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
-        surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
-        view(0, 60);
-        xlabel('meters'); ylabel('meters');
-        title('Stich range/azimuth');
-        axis tight;
-        colorbar;
+        range_angle_stich_2d = range_angle_stich_2d(:,:);                 % ensure 2-D
+        
+        Nrange_RA = size(range_angle_stich_2d, 1);
+        Nangle_RA = size(range_angle_stich_2d, 2);
+
+        % 2) Align with axes you’re plotting
+        % Clamp to the intersection so dimensions always agree
+        Nrange_ax  = numel(range_axis);
+        Nrange_use = min(Nrange_ax, Nrange_RA);
+        range_angle_stich_2d = range_angle_stich_2d(1:Nrange_use, :);
+        range_ax_use = range_axis(1:Nrange_use);
+
+        % Make sure anglesToSteer matches the RA angle dimension
+        anglesToSteer = anglesToSteer(:).';                     % row
+        if numel(anglesToSteer) ~= Nangle_RA
+            anglesToSteer = anglesToSteer(1:min(end, Nangle_RA));
+        end
+        Nangle_use = min(Nangle_RA, numel(anglesToSteer));
+        range_angle_stich_2d = range_angle_stich_2d(:, 1:Nangle_use);
+        angles_plot = anglesToSteer(1:Nangle_use);
+
+        % 3) Build coordinates once dimensions are consistent
+        sine_theta = sind(angles_plot);
+        cos_theta  = sqrt(1 - sine_theta.^2);
+        [R_mat,  sine_theta_mat]  = meshgrid(range_ax_use, sine_theta); % each is [Nangle_use x Nrange_use]
+        [~,  cos_theta_mat]   = meshgrid(range_ax_use, cos_theta);
+        X = R_mat .* cos_theta_mat;     % “x meters”
+        Y = R_mat .* sine_theta_mat;    % “y meters”
+        Z = abs(range_angle_stich_2d).^0.2;  % RA is [Nrange_use x Nangle_use]
+        Z = Z.';   % -> [Nangle_use x Nrange_use] to match X,Y
+
+        % 4) Plot: fallback for single-angle
+        if Nangle_use > 1
+            surf(Y, X, Z, 'EdgeColor','none');
+            view(0, 60);
+            xlabel('meters'); ylabel('meters');
+            title('Stitch range/azimuth'); colorbar; axis tight;
+        else
+            % Single angle: a 2D image or a simple range profile is clearer than a “ribbon” surf
+            imagesc(range_ax_use, 0, 20*log10(Z + eps));  % fake a 2D image row
+            axis xy tight; colorbar;
+            xlabel('Range (m)'); ylabel(sprintf('%d°', angles_plot(1)));
+            title('Stitch (single angle)');
+        end
     end
 
     % Batch loader: clears previous batch_data to free memory
@@ -250,6 +332,13 @@ function interactive_tx_bf_viewer_paged()
         for i = 1:(curr_batch_end-curr_batch_start+1)
             frame_idx = curr_batch_start + i - 1;
             tmp = load(fullfile(frame_files(frame_idx).folder, frame_files(frame_idx).name));
+            % ---- Normalize RD_map to always be [R x D x Ang] ----
+            if isfield(tmp,'RD_map')
+                if ndims(tmp.RD_map) == 2
+                    % Single-angle data saved as [R x D]; make it [R x D x 1]
+                    tmp.RD_map = reshape(tmp.RD_map, size(tmp.RD_map,1), size(tmp.RD_map,2), 1);
+                end
+            end
             batch_data{i} = tmp;
         end
         % Reset frame slider max/min to new batch size
@@ -274,6 +363,17 @@ function interactive_tx_bf_viewer_paged()
             load_current_batch();
         end
     end
+
+    function X = angslice(M, idx)
+        % Returns the [R x D] slice at angle idx, tolerating both 2D and 3D
+        if ndims(M) == 2
+            X = M;                       % already [R x D] for single angle
+        else
+            idx = min(max(1, idx), size(M,3));
+            X = M(:,:,idx);
+        end
+    end
+
 
     % Initial plot
     updatePlots();

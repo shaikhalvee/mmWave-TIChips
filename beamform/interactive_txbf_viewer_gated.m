@@ -3,8 +3,8 @@ function interactive_txbf_viewer_gated()
 % Paged viewer for huge per-frame TXBF results.
 % Adds an optional second window that shows DRONE-ONLY Doppler using a range gate.
 
-    frames_per_batch = 120;
-    data_folder  = './output/out_txbf_2_11_sl_8_stbl_mov_2/';
+    frames_per_batch = 200;
+    data_folder  = './output/txbf_in_hov/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
@@ -17,6 +17,19 @@ function interactive_txbf_viewer_gated()
     all_range_axis = config_data.all_range_axis;
     all_doppler_axis = config_data.all_doppler_axis;
     all_range_angle_stich = config_data.all_range_angle_stich;
+
+    % Normalize each entry to have angle as 2nd dim (Nrange x Nangle, with Nangle>=1)
+    for k = 1:numel(all_range_angle_stich)
+        A = all_range_angle_stich{k};
+        if isvector(A)
+            % Make it Nrange x 1
+            all_range_angle_stich{k} = A(:);
+        elseif ndims(A) == 3
+            % Your code later uses squeeze(..., :, :, 1); keep 2D Nrange x Nangle
+            all_range_angle_stich{k} = squeeze(A(:,:,1));
+            % else: already 2D => leave as is
+        end
+    end
 
     params_file = dir(fullfile(config_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in the given folder');
@@ -62,6 +75,10 @@ function interactive_txbf_viewer_gated()
     hAngle = uicontrol('Style', 'slider', 'Min', 1, 'Max', nAngles, ...
         'Value', 1, 'SliderStep', [1/max(1,nAngles-1), 1/max(1,nAngles-1)], ...
         'Position', [670 20 350 20]);
+    % If only one angle, lock the slider
+    if nAngles == 1
+        set(hAngle, 'Enable', 'off');   % or: set(hAngle,'Visible','off');
+    end
 
     hFrameLabel = uicontrol('Style', 'text', 'Position', [470 20 100 20], ...
         'String', sprintf('Frame: %d/%d', curr_batch_start, total_frames), 'HorizontalAlignment', 'left');
@@ -102,19 +119,24 @@ function interactive_txbf_viewer_gated()
 
     function updatePlots(~,~)
         frameIdx = round(get(hFrame, 'Value'));
-        angleIdx = round(get(hAngle, 'Value'));
+        % angleIdx = round(get(hAngle, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
+
         isLog1 = get(hCB1, 'Value');
         isLog2 = get(hCB2, 'Value');
         isLog3 = get(hCB3, 'Value');
 
         globalFrameIdx = curr_batch_start + frameIdx - 1;
         set(hFrameLabel, 'String', sprintf('Frame: %d/%d', globalFrameIdx, total_frames));
-        set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(angleIdx)));
+        % set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(angleIdx)));
+        set(hAngleLabel, 'String', sprintf('Angle: %d°', anglesToSteer(min(angleIdx, numel(anglesToSteer)))));
+
 
         % Load from batch_data
         D = batch_data{frameIdx};
         RD_map_abs_sq = (abs(D.RD_map)).^2; % [R D Ang]
-        to_plot = RD_map_abs_sq(:, :, angleIdx); % [R D]
+        % to_plot = RD_map_abs_sq(:, :, angleIdx); % [R D]
+        to_plot = angslice(RD_map_abs_sq, angleIdx);   % always [R x D]
         range_axis   = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
@@ -170,24 +192,75 @@ function interactive_txbf_viewer_gated()
 
         % -------- Range-Azimuth (stitch) --------
         axes(hAx4); cla(hAx4);
+        % if ~ismatrix(range_angle_stich)
+        %     range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
+        % else
+        %     range_angle_stich_2d = range_angle_stich;
+        % end
+        % indices_1D = 1:numel(range_axis);
+        % sine_theta = sind(anglesToSteer);
+        % cos_theta  = sqrt(1 - sine_theta.^2);
+        % [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
+        % [~,  cos_theta_mat]     = meshgrid(range_axis(indices_1D), cos_theta);
+        % x_axis = R_mat.*cos_theta_mat;
+        % y_axis = R_mat.*sine_theta_mat;
+        % range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
+        % surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
+        % view(0, 60);
+        % xlabel('meters'); ylabel('meters');
+        % title('Stich range/azimuth');
+        % axis tight; colorbar;
+
+        % 1) Normalize RA to 2-D [Nrange x Nangle]
         if ~ismatrix(range_angle_stich)
             range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
         else
             range_angle_stich_2d = range_angle_stich;
         end
-        indices_1D = 1:numel(range_axis);
-        sine_theta = sind(anglesToSteer);
+        range_angle_stich_2d = range_angle_stich_2d(:,:);                 % ensure 2-D
+        
+        Nrange_RA = size(range_angle_stich_2d, 1);
+        Nangle_RA = size(range_angle_stich_2d, 2);
+
+        % 2) Align with axes you’re plotting
+        % Clamp to the intersection so dimensions always agree
+        Nrange_ax  = numel(range_axis);
+        Nrange_use = min(Nrange_ax, Nrange_RA);
+        range_angle_stich_2d = range_angle_stich_2d(1:Nrange_use, :);
+        range_ax_use = range_axis(1:Nrange_use);
+
+        % Make sure anglesToSteer matches the RA angle dimension
+        anglesToSteer = anglesToSteer(:).';                     % row
+        if numel(anglesToSteer) ~= Nangle_RA
+            anglesToSteer = anglesToSteer(1:min(end, Nangle_RA));
+        end
+        Nangle_use = min(Nangle_RA, numel(anglesToSteer));
+        range_angle_stich_2d = range_angle_stich_2d(:, 1:Nangle_use);
+        angles_plot = anglesToSteer(1:Nangle_use);
+
+        % 3) Build coordinates once dimensions are consistent
+        sine_theta = sind(angles_plot);
         cos_theta  = sqrt(1 - sine_theta.^2);
-        [R_mat, sine_theta_mat] = meshgrid(range_axis(indices_1D), sine_theta);
-        [~,  cos_theta_mat]     = meshgrid(range_axis(indices_1D), cos_theta);
-        x_axis = R_mat.*cos_theta_mat;
-        y_axis = R_mat.*sine_theta_mat;
-        range_angle_stich_2d = (range_angle_stich_2d(indices_1D,:).');
-        surf(y_axis, x_axis, abs(range_angle_stich_2d).^0.2,'EdgeColor','none');
-        view(0, 60);
-        xlabel('meters'); ylabel('meters');
-        title('Stich range/azimuth');
-        axis tight; colorbar;
+        [R_mat,  sine_theta_mat]  = meshgrid(range_ax_use, sine_theta); % each is [Nangle_use x Nrange_use]
+        [~,  cos_theta_mat]   = meshgrid(range_ax_use, cos_theta);
+        X = R_mat .* cos_theta_mat;     % “x meters”
+        Y = R_mat .* sine_theta_mat;    % “y meters”
+        Z = abs(range_angle_stich_2d).^0.2;  % RA is [Nrange_use x Nangle_use]
+        Z = Z.';   % -> [Nangle_use x Nrange_use] to match X,Y
+
+        % 4) Plot: fallback for single-angle
+        if Nangle_use > 1
+            surf(Y, X, Z, 'EdgeColor','none');
+            view(0, 60);
+            xlabel('meters'); ylabel('meters');
+            title('Stitch range/azimuth'); colorbar; axis tight;
+        else
+            % Single angle: a 2D image or a simple range profile is clearer than a “ribbon” surf
+            imagesc(range_ax_use, 0, 20*log10(Z + eps));  % fake a 2D image row
+            axis xy tight; colorbar;
+            xlabel('Range (m)'); ylabel(sprintf('%d°', angles_plot(1)));
+            title('Stitch (single angle)');
+        end
 
         % Keep secondary window in sync, if open
         updateDroneWindow();
@@ -200,6 +273,13 @@ function interactive_txbf_viewer_gated()
         for i = 1:(curr_batch_end - curr_batch_start + 1)
             frame_idx = curr_batch_start + i - 1;
             tmp = load(fullfile(frame_files(frame_idx).folder, frame_files(frame_idx).name));
+            % ---- Normalize RD_map to always be [R x D x Ang] ----
+            if isfield(tmp,'RD_map')
+                if ndims(tmp.RD_map) == 2
+                    % Single-angle data saved as [R x D]; make it [R x D x 1]
+                    tmp.RD_map = reshape(tmp.RD_map, size(tmp.RD_map,1), size(tmp.RD_map,2), 1);
+                end
+            end
             batch_data{i} = tmp;
         end
         % Reset frame slider to new batch size
@@ -298,7 +378,8 @@ function interactive_txbf_viewer_gated()
 
         % Sync with current main selection and log toggles
         frameIdx = round(get(hFrame, 'Value'));
-        angleIdx = round(get(hAngle, 'Value'));
+        % angleIdx = round(get(hAngle, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
         globalFrameIdx = curr_batch_start + frameIdx - 1;
         isLog1 = get(hCB1, 'Value'); % for RD
         isLog2 = get(hCB2, 'Value'); % for Range
@@ -306,12 +387,13 @@ function interactive_txbf_viewer_gated()
 
         D = batch_data{frameIdx};
         RD_map_abs = abs(D.RD_map).^2;        % [R D Ang]
-        to_plot = RD_map_abs(:,:,angleIdx);   % [R D]
+        % to_plot = RD_map_abs(:,:,angleIdx);   % [R D]
+        to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D]
         range_axis   = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
         % Limit range visually
-        max_range = 100; 
+        max_range = 40; 
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
         range_axis = range_axis(idx_range);
@@ -394,7 +476,7 @@ function interactive_txbf_viewer_gated()
         updateFoldingWindow();
     end
 
-        function openFoldingWindow(~,~)
+    function openFoldingWindow(~,~)
         if foldingWin.exists && isvalid(foldingWin.hFig3)
             figure(foldingWin.hFig3); % focus
             return;
@@ -436,13 +518,15 @@ function interactive_txbf_viewer_gated()
 
         % Pull the same frame/angle selection as the other windows
         frameIdx = round(get(hFrame, 'Value'));
-        angleIdx = round(get(hAngle, 'Value'));
+        % angleIdx = round(get(hAngle, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
         globalFrameIdx = curr_batch_start + frameIdx - 1;
 
         % Assemble the same to_plot & axes (linear power)
         D = batch_data{frameIdx};
         RD_map_abs = abs(D.RD_map).^2;      % [R D Ang]
-        to_plot = RD_map_abs(:,:,angleIdx); % [R D]
+        % to_plot = RD_map_abs(:,:,angleIdx); % [R D]
+        to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D]
         range_axis   = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
@@ -472,6 +556,16 @@ function interactive_txbf_viewer_gated()
         plot([gate_center-half_w gate_center-half_w], yl, '--');
         plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off;
+    end
+
+    function X = angslice(M, idx)
+        % Returns the [R x D] slice at angle idx, tolerating both 2D and 3D
+        if ndims(M) == 2
+            X = M;                       % already [R x D] for single angle
+        else
+            idx = min(max(1, idx), size(M,3));
+            X = M(:,:,idx);
+        end
     end
 
 end

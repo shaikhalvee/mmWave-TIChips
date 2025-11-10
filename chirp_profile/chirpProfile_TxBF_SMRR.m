@@ -91,15 +91,13 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     % The slope is set to '8.43 * 3' => 25.29 MHz/us total
     params.Slope_MHzperus = 8.43 * 3;
 
-    params.Idle_Time_us = 5;       
+    params.Idle_Time_us = 200;       
     params.Tx_Start_Time_us = 0;   
     params.Adc_Start_Time_us = 6;  
     params.Ramp_End_Time_us = 40;
     params.Sampling_Rate_ksps = 16000;
     params.Samples_per_Chirp = 512;
-    params.Rx_Gain_dB = 24;          % Received gain in dB
-
-    % range resolution: 0.2 m
+    params.Rx_Gain_dB = 52;          % Received gain in dB
 
     % Frame config parameters
     params.nchirp_loops = nchirp_loops;
@@ -154,8 +152,7 @@ function [params] = chirpProfile_TxBF_SMRR(angles)
     end
 
     % frame repetition period in ms, used for controlling how often frames start
-    params.Frame_Repetition_Period_ms = ...
-        params.SF1SubFramePeriodicity / 200 / 1000;
+    params.Frame_Repetition_Period_ms = params.SF1SubFramePeriodicity / 200 / 1000;
 
     %% Algorithm parameters
     % For range/doppler processing, we can apply a window, and define the FFT sizes
