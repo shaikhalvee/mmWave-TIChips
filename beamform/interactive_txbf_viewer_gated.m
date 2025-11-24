@@ -551,7 +551,7 @@ function interactive_txbf_viewer_gated()
 
     function openFoldingWindow(~,~)
         if foldingWin.exists && isvalid(foldingWin.hFig3)
-            figure(foldingWin.hFig3); % focus
+            figure(foldingWin.hFig3);
             return;
         end
 
@@ -560,34 +560,38 @@ function interactive_txbf_viewer_gated()
         %                           'NumberTitle','off', 'Position',[220 220 900 260]);
 
         % Create a dedicated figure that will host folding, FrFT spectrum and controls
-        foldingWin.hFig3 = figure('Name','Folding & Fractional Spectrum', ...
+        foldingWin.hFig3 = figure('Name','Folding & Smearing', ...
             'NumberTitle','off', 'Position',[220 220 950 620], ...
             'CloseRequestFcn',@closeFoldingWindow);
 
         % One axis that fills most of the figure
         % foldingWin.ax = axes('Parent', foldingWin.hFig3, 'Position',[0.08 0.22 0.88 0.72]);
         tFold = tiledlayout(foldingWin.hFig3,2,1,'Padding','compact','TileSpacing','compact');
-        foldingWin.ax = nexttile(tFold,1);
-        foldingWin.axFrft = nexttile(tFold,2);
+        foldingWin.axFold = nexttile(tFold,1);   % P_i vs range
+        foldingWin.axMu   = nexttile(tFold,2);   % μ_D(j*) for one range bin
 
         % Optional controls to tweak jmin/jmax
-        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.08 0.02 0.05 0.05],...
-            'String','j_{min}','HorizontalAlignment','right');
-        foldingWin.edJmin = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.14 0.02 0.06 0.05],...
-            'String',num2str(foldingWin.jmin),'Callback',@(s,~) setFoldParams());
-        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.22 0.02 0.05 0.05],...
-            'String','j_{max}','HorizontalAlignment','right');
-        foldingWin.edJmax = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized','Position',[0.28 0.02 0.06 0.05],...
-            'String',num2str(foldingWin.jmax),'Callback',@(s,~) setFoldParams());
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized', ...
+            'Position',[0.08 0.02 0.05 0.05],'String','j_{min}', ...
+            'HorizontalAlignment','right');
+        foldingWin.edJmin = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized', ...
+            'Position',[0.14 0.02 0.06 0.05],'String',num2str(foldingWin.jmin), ...
+            'Callback',@(s,~) setFoldParams());
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized', ...
+            'Position',[0.22 0.02 0.05 0.05],'String','j_{max}', ...
+            'HorizontalAlignment','right');
+        foldingWin.edJmax = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized', ...
+            'Position',[0.28 0.02 0.06 0.05],'String',num2str(foldingWin.jmax), ...
+            'Callback',@(s,~) setFoldParams());
 
         % FrFT slider and label
-        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.40 0.02 0.10 0.05],...
-            'String','FrFT order','HorizontalAlignment','right');
-        foldingWin.slFrft = uicontrol(foldingWin.hFig3,'Style','slider','Units','normalized',...
-            'Position',[0.51 0.025 0.25 0.04],'Min',0,'Max',2,'Value',foldingWin.fracOrder,...
-            'SliderStep',[0.001 0.001],'Callback',@(s,~) setFracOrder(s));
-        foldingWin.txtFrft = uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.78 0.02 0.15 0.05],...
-            'String',sprintf('Order: %.1f',foldingWin.fracOrder),'HorizontalAlignment','left');
+        % uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.40 0.02 0.10 0.05],...
+        %     'String','FrFT order','HorizontalAlignment','right');
+        % foldingWin.slFrft = uicontrol(foldingWin.hFig3,'Style','slider','Units','normalized',...
+        %     'Position',[0.51 0.025 0.25 0.04],'Min',0,'Max',2,'Value',foldingWin.fracOrder,...
+        %     'SliderStep',[0.001 0.001],'Callback',@(s,~) setFracOrder(s));
+        % foldingWin.txtFrft = uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.78 0.02 0.15 0.05],...
+        %     'String',sprintf('Order: %.1f',foldingWin.fracOrder),'HorizontalAlignment','left');
 
         foldingWin.exists = true;
         updateFoldingWindow();
@@ -632,6 +636,7 @@ function interactive_txbf_viewer_gated()
         globalFrameIdx = curr_batch_start + frameIdx - 1;
 
         % Assemble the same to_plot & axes (linear power)
+        % Build RD slice [R x D] (power)
         D = batch_data{frameIdx};
         rangeDopplerFFTmap = D.RD_map.dopplerFFT;
         RD_map_slice_complex = rangeDopplerFFTmap(:,:,angleIdx); % retain complex data
@@ -654,14 +659,17 @@ function interactive_txbf_viewer_gated()
             droneWin.gate_center_m, droneWin.gate_width_m, droneWin.v_exclude);
 
         % Folding values per range bin (paper definition)
-        [P_fold, ~] = compute_range_folding_values(to_plot, foldingWin.jmin, foldingWin.jmax);
+        % [P_fold, ~] = compute_range_folding_values(to_plot, foldingWin.jmin, foldingWin.jmax);
 
-        % Draw folding values per range bin
-        axes(foldingWin.ax); cla(foldingWin.ax);
+        % Folding + smearing + μ_D(j*)
+        [P_fold, j_best, ~, S_smear, S_norm, mu_best_all] = calc_smearing_degree(to_plot, foldingWin.jmin, foldingWin.jmax);
+
+        % ---- Draw folding values per range bin: P_i vs range ----
+        axes(foldingWin.axFold); cla(foldingWin.axFold);
         plot(range_axis, P_fold, 'LineWidth',1.3); grid on;
         xlabel('Range (m)');
-        ylabel('Folding value');
-        title(sprintf('Folding values per range (j = %d..%d)', foldingWin.jmin, foldingWin.jmax));
+        ylabel('Folding value P_i');
+        title(sprintf('Folding per range (j = %d..%d)', foldingWin.jmin, foldingWin.jmax));
 
         % Overlay the current gate as two dashed verticals
         yl = ylim; half_w = gate_width/2; hold on;
@@ -669,7 +677,139 @@ function interactive_txbf_viewer_gated()
         plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off;
 
-        % === NEW: Fractional Fourier spectrum from slow-time (rangeFFT) ===
+        % Choose a "representative" range bin: strongest P inside the gate
+        if isempty(gate_idx)
+            rbin = 1;
+        else
+            [~, rel_idx] = max(P_fold(gate_idx));
+            rbin = gate_idx(rel_idx);
+        end
+
+        mu = mu_best_all{rbin};       % this is μ_D(j_best) for that bin
+        if isempty(mu)
+            axes(foldingWin.axMu); cla(foldingWin.axMu);
+            title('No valid folding for selected bin');
+            return;
+        end
+
+        j_star = j_best(rbin);
+        S_i    = S_smear(rbin);
+        S_i_n  = S_norm(rbin);
+        mu_bar = mean(mu);
+
+        % ---- Bottom: μ_D(j*) (columnwise array) ----
+        axes(foldingWin.axMu); cla(foldingWin.axMu);
+        k = 0:(numel(mu)-1);    % 0-based index (matches your paper indexing)
+        plot(k, mu, '-o','LineWidth',1.3); hold on;
+        yline(mu_bar,'--','Mean \mu','LabelHorizontalAlignment','left');
+        grid on;
+        xlabel('Column index k');
+        ylabel('\mu_k(j^*)');
+        title(sprintf('\\mu_D(j^*) at range %.1f m | S = %d, S_{norm} = %.2f | j star value = %.2f', ...
+            range_axis(rbin), S_i, S_i_n, j_star));
+        hold off;
+    end
+
+    function X = angslice(M, idx)
+        % Returns the [R x D] slice at angle idx, tolerating both 2D and 3D
+        if ndims(M) == 2
+            X = M;                       % already [R x D] for single angle
+        else
+            idx = min(max(1, idx), size(M,3));
+            X = M(:,:,idx);
+        end
+    end
+
+end
+
+function [gate_idx, gate_center_m, gate_width_m] = compute_gate_for_drone( ...
+        to_plot, range_axis, doppler_axis, auto_gate, gate_center_m, gate_width_m, v_exclude)
+    % Auto-gate on strongest non-zero-Doppler range; else use manual center/width.
+    if auto_gate
+        nz = abs(doppler_axis) > v_exclude;
+        rp_nz = mean(to_plot(:, nz), 2);
+        if ~any(nz)
+            rp_nz = mean(to_plot,2);
+        end
+        [~, pk] = max(rp_nz);
+        gate_center_m = range_axis(pk);
+    end
+    % Ensure >= 1 bin in gate
+    if numel(range_axis) > 1
+        dr = mean(diff(range_axis));
+    else
+        dr = 1;
+    end
+    half_w = max(gate_width_m/2, 0.5*dr);
+    mask = (range_axis >= gate_center_m - half_w) & (range_axis <= gate_center_m + half_w);
+    if ~any(mask)
+        [~, nn] = min(abs(range_axis - gate_center_m));
+        mask(nn) = true;
+    end
+    gate_idx = find(mask);
+end
+
+% function label_folding_topaxis(axRange, range_axis, P, fmt)
+% % Overlay ONLY a top x-axis with tick labels showing folding values.
+% % - axRange: handle of your Range Profile axis
+% % - range_axis: vector of x positions (same length/order as P)
+% % - P: folding value per range bin (from compute_range_folding_values)
+% % - fmt: optional sprintf format for labels (e.g., '%.1f')
+%     if nargin < 4, fmt = '%.1f'; end
+% 
+%     % Remove any previous overlay for a clean refresh
+%     old = findobj(get(axRange,'Parent'), 'Type','axes', 'Tag','FoldingTopAxisLabels');
+%     if ~isempty(old), delete(old); end
+% 
+%     % Use bottom axis ticks to avoid clutter
+%     xt  = get(axRange, 'XTick');
+%     xlm = get(axRange, 'XLim');
+% 
+%     % Interpolate folding values at those tick positions
+%     % Use 'nearest' so labels correspond to actual bins
+%     Pt = interp1(range_axis(:), P(:), xt(:), 'nearest', 'extrap');
+% 
+%     % Create a transparent axis on top to host the labels (no data plotted)
+%     basePos = get(axRange, 'Position');
+%     axTop = axes('Position', basePos, ...
+%                  'Color','none', 'XAxisLocation','top', ...
+%                  'YAxisLocation','right', 'YColor','none', ...
+%                  'XLim', xlm, 'Tag','FoldingTopAxisLabels', ...
+%                  'HitTest','off', 'PickableParts','none', ...
+%                  'Box','off');
+% 
+%     set(axTop, 'XTick', xt);
+%     set(axTop, 'XTickLabel', arrayfun(@(v) sprintf(fmt, v), Pt, 'UniformOutput', false));
+%     xlabel(axTop, 'Folding value'); % top-axis label
+% end
+
+function draw_folding_topaxis(axRange, range_axis, P)
+% DRAW_FOLDING_TOPAXIS
+% Overlays a slim axis above axRange (your Range Profile) that plots
+% the folding value P(range). Shares x-limits; top x-axis shows range; label top.
+    % Remove any previous overlay
+    old = findobj(get(axRange,'Parent'),'Type','axes','Tag','FoldingTopAxis');
+    if ~isempty(old), delete(old); end
+
+    % Positioning: create a shallow axis above the Range Profile axis
+    basePos = get(axRange,'Position');
+    ht   = basePos(4);   % height
+    gap  = 0.02;         % small gap
+    frac = 0.22;         % top strip height fraction relative to base axis
+    topPos = [basePos(1), basePos(2)+ht+gap, basePos(3), ht*frac];
+
+    axTop = axes('Position', topPos, 'Tag','FoldingTopAxis');
+    plot(range_axis, P, 'LineWidth', 1.2); grid on;
+    xlim(axTop, xlim(axRange));  % lock x-range
+    set(axTop, 'XAxisLocation','top', 'YAxisLocation','right');
+    set(axTop, 'XTickLabel', []);          % keep the main axis as the place for range labels
+    ylabel(axTop, 'Folding');              % shows folding value scale
+    % Optional: make background transparent-ish over figure
+    set(axTop, 'Color', 'none'); 
+end
+
+function frFT_code()
+% === NEW: Fractional Fourier spectrum from slow-time (rangeFFT) ===
         axes(foldingWin.axFrft); cla(foldingWin.axFrft);
         % UI label
         if isfield(foldingWin,'txtFrft') && isvalid(foldingWin.txtFrft)
@@ -848,103 +988,5 @@ function interactive_txbf_viewer_gated()
         % xlabel('Velocity (m/s)');
         % ylabel(yLabelStr);
         % title(titleStr);
-    end
-
-    function X = angslice(M, idx)
-        % Returns the [R x D] slice at angle idx, tolerating both 2D and 3D
-        if ndims(M) == 2
-            X = M;                       % already [R x D] for single angle
-        else
-            idx = min(max(1, idx), size(M,3));
-            X = M(:,:,idx);
-        end
-    end
-
-end
-
-function [gate_idx, gate_center_m, gate_width_m] = compute_gate_for_drone( ...
-        to_plot, range_axis, doppler_axis, auto_gate, gate_center_m, gate_width_m, v_exclude)
-    % Auto-gate on strongest non-zero-Doppler range; else use manual center/width.
-    if auto_gate
-        nz = abs(doppler_axis) > v_exclude;
-        rp_nz = mean(to_plot(:, nz), 2);
-        if ~any(nz)
-            rp_nz = mean(to_plot,2);
-        end
-        [~, pk] = max(rp_nz);
-        gate_center_m = range_axis(pk);
-    end
-    % Ensure >= 1 bin in gate
-    if numel(range_axis) > 1
-        dr = mean(diff(range_axis));
-    else
-        dr = 1;
-    end
-    half_w = max(gate_width_m/2, 0.5*dr);
-    mask = (range_axis >= gate_center_m - half_w) & (range_axis <= gate_center_m + half_w);
-    if ~any(mask)
-        [~, nn] = min(abs(range_axis - gate_center_m));
-        mask(nn) = true;
-    end
-    gate_idx = find(mask);
-end
-
-% function label_folding_topaxis(axRange, range_axis, P, fmt)
-% % Overlay ONLY a top x-axis with tick labels showing folding values.
-% % - axRange: handle of your Range Profile axis
-% % - range_axis: vector of x positions (same length/order as P)
-% % - P: folding value per range bin (from compute_range_folding_values)
-% % - fmt: optional sprintf format for labels (e.g., '%.1f')
-%     if nargin < 4, fmt = '%.1f'; end
-% 
-%     % Remove any previous overlay for a clean refresh
-%     old = findobj(get(axRange,'Parent'), 'Type','axes', 'Tag','FoldingTopAxisLabels');
-%     if ~isempty(old), delete(old); end
-% 
-%     % Use bottom axis ticks to avoid clutter
-%     xt  = get(axRange, 'XTick');
-%     xlm = get(axRange, 'XLim');
-% 
-%     % Interpolate folding values at those tick positions
-%     % Use 'nearest' so labels correspond to actual bins
-%     Pt = interp1(range_axis(:), P(:), xt(:), 'nearest', 'extrap');
-% 
-%     % Create a transparent axis on top to host the labels (no data plotted)
-%     basePos = get(axRange, 'Position');
-%     axTop = axes('Position', basePos, ...
-%                  'Color','none', 'XAxisLocation','top', ...
-%                  'YAxisLocation','right', 'YColor','none', ...
-%                  'XLim', xlm, 'Tag','FoldingTopAxisLabels', ...
-%                  'HitTest','off', 'PickableParts','none', ...
-%                  'Box','off');
-% 
-%     set(axTop, 'XTick', xt);
-%     set(axTop, 'XTickLabel', arrayfun(@(v) sprintf(fmt, v), Pt, 'UniformOutput', false));
-%     xlabel(axTop, 'Folding value'); % top-axis label
-% end
-
-function draw_folding_topaxis(axRange, range_axis, P)
-% DRAW_FOLDING_TOPAXIS
-% Overlays a slim axis above axRange (your Range Profile) that plots
-% the folding value P(range). Shares x-limits; top x-axis shows range; label top.
-    % Remove any previous overlay
-    old = findobj(get(axRange,'Parent'),'Type','axes','Tag','FoldingTopAxis');
-    if ~isempty(old), delete(old); end
-
-    % Positioning: create a shallow axis above the Range Profile axis
-    basePos = get(axRange,'Position');
-    ht   = basePos(4);   % height
-    gap  = 0.02;         % small gap
-    frac = 0.22;         % top strip height fraction relative to base axis
-    topPos = [basePos(1), basePos(2)+ht+gap, basePos(3), ht*frac];
-
-    axTop = axes('Position', topPos, 'Tag','FoldingTopAxis');
-    plot(range_axis, P, 'LineWidth', 1.2); grid on;
-    xlim(axTop, xlim(axRange));  % lock x-range
-    set(axTop, 'XAxisLocation','top', 'YAxisLocation','right');
-    set(axTop, 'XTickLabel', []);          % keep the main axis as the place for range labels
-    ylabel(axTop, 'Folding');              % shows folding value scale
-    % Optional: make background transparent-ish over figure
-    set(axTop, 'Color', 'none'); 
 end
 
