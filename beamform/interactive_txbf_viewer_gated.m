@@ -3,10 +3,13 @@ function interactive_txbf_viewer_gated()
 % Paged viewer for huge per-frame TXBF results.
 % Adds an optional second window that shows DRONE-ONLY Doppler using a range gate.
 
-    frames_per_batch = 200;
-    data_folder  = './output/txbf_in_hov/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
+    frames_per_batch = 300;
+    data_folder  = './output/out_txbf_13_100_150_255_2/';
+    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
     config_folder = data_folder;
+
+    % maximum range
+    maxRange = 100; % in meters
 
     % Get all frame file names
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
@@ -107,6 +110,15 @@ function interactive_txbf_viewer_gated()
         'Units', 'normalized', 'Position', [0.11 0.04 0.05 0.03], 'Value', 1, 'Parent', hFig);
     hAx4 = subplot(2,2,4);
 
+    % ===== use only RD map (top) and Doppler spectrum (bottom) =====
+    % Hide Range Profile and Range–Angle axes
+    set(hAx2, 'Visible', 'off');
+    set(hAx4, 'Visible', 'off');
+    % Make RD map span the full top half
+    set(hAx1, 'Position', [0.07 0.55 0.88 0.40]);
+    % Make Doppler spectrum span the full bottom half
+    set(hAx3, 'Position', [0.07 0.08 0.88 0.40]);
+
     % Load first batch and init
     load_current_batch();
 
@@ -139,14 +151,15 @@ function interactive_txbf_viewer_gated()
 
         % Load from batch_data
         D = batch_data{frameIdx};
-        RD_map_abs_sq = (abs(D.RD_map)).^2; % [R D Ang]
+        rangeDopplerMap = D.RD_map.dopplerFFT;
+        RD_map_abs_sq = (abs(rangeDopplerMap)).^2; % [R D Ang]
         % to_plot = RD_map_abs_sq(:, :, angleIdx); % [R D]
         to_plot = angslice(RD_map_abs_sq, angleIdx);   % always [R x D]
         range_axis   = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
         % Limit range visually to 0..100 m
-        max_range = 100; % meters
+        max_range = maxRange; % meters
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
         range_axis = range_axis(idx_range);
@@ -156,7 +169,12 @@ function interactive_txbf_viewer_gated()
         % -------- RD Map --------
         axes(hAx1); cla(hAx1);
         if isLog1
-            imagesc(doppler_axis, range_axis, 20*log10(to_plot + eps));
+            RD_dB = 20*log10(to_plot + eps);       % convert to dB
+            % Option A: fixed dynamic range under the peak
+            maxVal = max(RD_dB(:));
+            dynRange = 120;   % show top 120 dB (tune 30–60)
+            imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]);
+            % imagesc(doppler_axis, range_axis, RD_dB);
             title('Range-Doppler Map (dB)', 'FontSize', 16);
         else
             imagesc(doppler_axis, range_axis, to_plot);
@@ -168,18 +186,18 @@ function interactive_txbf_viewer_gated()
         set(gca, 'FontSize', 16);
 
         % -------- Range Profile --------
-        axes(hAx2); cla(hAx2);
-        if isLog2
-            plot(range_axis, 20*log10(max(mean(to_plot,2),2)+eps), 'LineWidth', 1.0);
-            title('Range Profile (dB)', 'FontSize', 16);
-            ylabel('Power (dB)', 'FontSize', 16);
-        else
-            plot(range_axis, mean(to_plot,2), 'LineWidth', 1.0);
-            title('Range Profile (linear)', 'FontSize', 16);
-            ylabel('Power (linear)', 'FontSize', 16);
-        end
-        xlabel('Range (m)', 'FontSize', 16);
-        set(gca, 'FontSize', 14);
+        % axes(hAx2); cla(hAx2);
+        % if isLog2
+        %     plot(range_axis, 20*log10(max(mean(to_plot,2),2)+eps), 'LineWidth', 1.0);
+        %     title('Range Profile (dB)', 'FontSize', 16);
+        %     ylabel('Power (dB)', 'FontSize', 16);
+        % else
+        %     plot(range_axis, mean(to_plot,2), 'LineWidth', 1.0);
+        %     title('Range Profile (linear)', 'FontSize', 16);
+        %     ylabel('Power (linear)', 'FontSize', 16);
+        % end
+        % xlabel('Range (m)', 'FontSize', 16);
+        % set(gca, 'FontSize', 14);
 
         % -------- Doppler Profile (ALL ranges, unchanged in main view) --------
         axes(hAx3); cla(hAx3);
@@ -196,7 +214,8 @@ function interactive_txbf_viewer_gated()
         set(gca, 'FontSize', 16);
 
         % -------- Range-Azimuth (stitch) --------
-        axes(hAx4); cla(hAx4);
+        % axes(hAx4); cla(hAx4);
+        
         % if ~ismatrix(range_angle_stich)
         %     range_angle_stich_2d = squeeze(range_angle_stich(:,:,1));
         % else
@@ -254,18 +273,18 @@ function interactive_txbf_viewer_gated()
         Z = Z.';   % -> [Nangle_use x Nrange_use] to match X,Y
 
         % 4) Plot: fallback for single-angle
-        if Nangle_use > 1
-            surf(Y, X, Z, 'EdgeColor','none');
-            view(0, 60);
-            xlabel('meters'); ylabel('meters');
-            title('Stitch range/azimuth'); colorbar; axis tight;
-        else
-            % Single angle: a 2D image or a simple range profile is clearer than a “ribbon” surf
-            imagesc(range_ax_use, 0, 20*log10(Z + eps));  % fake a 2D image row
-            axis xy tight; colorbar;
-            xlabel('Range (m)'); ylabel(sprintf('%d°', angles_plot(1)));
-            title('Stitch (single angle)');
-        end
+        % if Nangle_use > 1
+        %     surf(Y, X, Z, 'EdgeColor','none');
+        %     view(0, 60);
+        %     xlabel('meters'); ylabel('meters');
+        %     title('Stitch range/azimuth'); colorbar; axis tight;
+        % else
+        %     % Single angle: a 2D image or a simple range profile is clearer than a “ribbon” surf
+        %     imagesc(range_ax_use, 0, 20*log10(Z + eps));  % fake a 2D image row
+        %     axis xy tight; colorbar;
+        %     xlabel('Range (m)'); ylabel(sprintf('%d°', angles_plot(1)));
+        %     title('Stitch (single angle)');
+        % end
 
         % Keep secondary window in sync, if open
         updateDroneWindow();
@@ -273,21 +292,49 @@ function interactive_txbf_viewer_gated()
     end
 
     function load_current_batch()
-        % Release previous batch data explicitly to save memory
         batch_data = cell(1, curr_batch_end - curr_batch_start + 1);
         for i = 1:(curr_batch_end - curr_batch_start + 1)
             frame_idx = curr_batch_start + i - 1;
             tmp = load(fullfile(frame_files(frame_idx).folder, frame_files(frame_idx).name));
-            % ---- Normalize RD_map to always be [R x D x Ang] ----
+
+            % --- Compatibility & shape normalization ---
             if isfield(tmp,'RD_map')
-                if ndims(tmp.RD_map) == 2
-                    % Single-angle data saved as [R x D]; make it [R x D x 1]
-                    tmp.RD_map = reshape(tmp.RD_map, size(tmp.RD_map,1), size(tmp.RD_map,2), 1);
+                if ~isstruct(tmp.RD_map)
+                    % Legacy numeric -> wrap as dopplerFFT-only
+                    DF = tmp.RD_map;
+                    if ndims(DF) == 2, DF = reshape(DF, size(DF,1), size(DF,2), 1); end
+                    tmp.RD_map = struct('dopplerFFT', DF, 'rangeFFT', []);
+                else
+                    % Struct form; support legacy field names
+                    if isfield(tmp.RD_map,'rangeDopplerMap') && ~isfield(tmp.RD_map,'dopplerFFT')
+                        tmp.RD_map.dopplerFFT = tmp.RD_map.rangeDopplerMap;
+                    end
+                    % Ensure dopplerFFT is [R x D x Ang]
+                    if isfield(tmp.RD_map,'dopplerFFT')
+                        DF = tmp.RD_map.dopplerFFT;
+                        if ndims(DF) == 2
+                            DF = reshape(DF, size(DF,1), size(DF,2), 1);
+                        end
+                        tmp.RD_map.dopplerFFT = DF;
+                    end
+                    % Ensure rangeFFT is [R x nChirps x Ang] or empty
+                    if isfield(tmp.RD_map,'rangeFFT') && ~isempty(tmp.RD_map.rangeFFT)
+                        RF = tmp.RD_map.rangeFFT;
+                        if ndims(RF) == 2
+                            RF = reshape(RF, size(RF,1), size(RF,2), 1);
+                        end
+                        tmp.RD_map.rangeFFT = RF;
+                    else
+                        tmp.RD_map.rangeFFT = [];
+                    end
                 end
+            else
+                error('Frame file missing RD_map: %s', frame_files(frame_idx).name);
             end
+
             batch_data{i} = tmp;
         end
-        % Reset frame slider to new batch size
+
         batch_frames = curr_batch_end - curr_batch_start + 1;
         set(hFrame, 'Min', 1, 'Max', batch_frames, 'Value', 1, ...
             'SliderStep', [1/max(1,batch_frames-1), 1/max(1,batch_frames-1)]);
@@ -311,7 +358,6 @@ function interactive_txbf_viewer_gated()
     end
 
     % ===================== SECOND WINDOW =====================
-
     function openDroneWindow(~,~)
         if droneWin.exists && isvalid(droneWin.hFig2)
             figure(droneWin.hFig2);
@@ -394,17 +440,22 @@ function interactive_txbf_viewer_gated()
         isLog3 = get(hCB3, 'Value'); % for Doppler
 
         D = batch_data{frameIdx};
-        RD_map_abs = abs(D.RD_map).^2;        % [R D Ang]
+        RD_FFTmap = D.RD_map.dopplerFFT;
+        RD_map_abs = abs(RD_FFTmap).^2; % [R D Ang]
         % to_plot = RD_map_abs(:,:,angleIdx);   % [R D]
-        to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D]
+        to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D] power only
         range_axis   = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
+        % NEW: keep complex slice for coherent averaging
+        RD_cx_slice = angslice(RD_FFTmap, angleIdx);     % [R x D] complex
+
         % Limit range visually
-        max_range = 40; 
+        max_range = maxRange; 
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
         range_axis = range_axis(idx_range);
+        RD_cx_slice = RD_cx_slice(idx_range, :);   % trim complex slice the same way
 
         % Compute gate
         [gate_idx, gate_center, gate_width] = compute_gate_for_drone( ...
@@ -420,7 +471,12 @@ function interactive_txbf_viewer_gated()
         % ----- RD map with gate band -----
         axes(droneWin.axRD); cla(droneWin.axRD);
         if isLog1
-            imagesc(doppler_axis, range_axis, 20*log10(to_plot+eps)); axis xy;
+            RD_dB = 20*log10(to_plot + eps);       % convert to dB
+            % Option A: fixed dynamic range under the peak
+            maxVal   = max(RD_dB(:));
+            dynRange = 120;                          % show top 50 dB (tune 30–60)
+            
+            imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]); axis xy;
             title('RD (dB) with Gate');
         else
             imagesc(doppler_axis, range_axis, to_plot); axis xy;
@@ -459,12 +515,18 @@ function interactive_txbf_viewer_gated()
 
         % ===== Add TOP X-AXIS LABELS with folding values (no new plot) =====
         jmin = 2; jmax = 20; % choose per your Doppler length / rotor cadence range
-        [P_fold, ~] = compute_range_folding_values(to_plot, jmin, jmax);
+        [P_fold, j_best, ~] = compute_range_folding_values(to_plot, jmin, jmax);
         % label_folding_topaxis(droneWin.axRange, range_axis, P_fold, '%.1f');
 
         % (Optional) Show a quick comparison in the info label:
         P_gate_mean = mean(P_fold(gate_idx));
         P_oth_mean  = mean(P_fold(setdiff(1:numel(range_axis), gate_idx)));
+
+        % Choose a representative fold size *inside the gate*:
+        % use the range bin in the gate where the folding value is strongest
+        [~, rel_idx_max] = max(P_fold(gate_idx));      % index within gate_idx
+        rbin_peak        = gate_idx(rel_idx_max);      % absolute range-bin index
+        fold_size_rBin   = j_best(rbin_peak);          % j* at that range bin
 
         % ----- Drone-only Doppler (gated rows only) -----
         axes(droneWin.axDopp); cla(droneWin.axDopp);
@@ -478,9 +540,12 @@ function interactive_txbf_viewer_gated()
         end
         xlabel('Velocity (m/s)'); grid on;
 
-        set(droneWin.txtInfo,'String', ...
-            sprintf('Frame %d | Angle %d° | Gate %.2fm±%.2fm | Fold(gate)=%.1f, Fold(else)=%.1f', ...
-            globalFrameIdx, anglesToSteer(angleIdx), gate_center, gate_width, P_gate_mean, P_oth_mean));
+        set(droneWin.txtInfo,'String', sprintf(['Frame %d | Angle %d° | Gate %.2fm±%.2fm | ' ...
+                 'Fold(gate)=%.1f, Fold(else)=%.1f | fold size j*=%d'], ...
+        globalFrameIdx, anglesToSteer(angleIdx), ...
+        gate_center, gate_width, ...
+        P_gate_mean, P_oth_mean, round(fold_size_rBin)));
+        
         updateFoldingWindow();
     end
 
@@ -519,8 +584,8 @@ function interactive_txbf_viewer_gated()
         uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.40 0.02 0.10 0.05],...
             'String','FrFT order','HorizontalAlignment','right');
         foldingWin.slFrft = uicontrol(foldingWin.hFig3,'Style','slider','Units','normalized',...
-            'Position',[0.51 0.025 0.25 0.04],'Min',0,'Max',1,'Value',foldingWin.fracOrder,...
-            'SliderStep',[0.1 0.1],'Callback',@(s,~) setFracOrder(s));
+            'Position',[0.51 0.025 0.25 0.04],'Min',0,'Max',2,'Value',foldingWin.fracOrder,...
+            'SliderStep',[0.001 0.001],'Callback',@(s,~) setFracOrder(s));
         foldingWin.txtFrft = uicontrol(foldingWin.hFig3,'Style','text','Units','normalized','Position',[0.78 0.02 0.15 0.05],...
             'String',sprintf('Order: %.1f',foldingWin.fracOrder),'HorizontalAlignment','left');
 
@@ -537,8 +602,9 @@ function interactive_txbf_viewer_gated()
 
         function setFracOrder(src)
             val = get(src,'Value');
-            val = round(val*10)/10; % snap to 0.1 steps
-            foldingWin.fracOrder = max(0, min(1, val));
+            % val = round(val*10)/10; % snap to 0.1 steps
+            val = round(val*1000)/1000; 
+            foldingWin.fracOrder = max(0, min(2, val));
             if isvalid(foldingWin.slFrft)
                 set(foldingWin.slFrft,'Value',foldingWin.fracOrder);
             end
@@ -567,15 +633,16 @@ function interactive_txbf_viewer_gated()
 
         % Assemble the same to_plot & axes (linear power)
         D = batch_data{frameIdx};
-        RD_map_slice_complex = D.RD_map(:,:,angleIdx); % retain complex data
-        RD_map_abs = abs(D.RD_map).^2;      % [R D Ang]
+        rangeDopplerFFTmap = D.RD_map.dopplerFFT;
+        RD_map_slice_complex = rangeDopplerFFTmap(:,:,angleIdx); % retain complex data
+        RD_map_abs = abs(rangeDopplerFFTmap).^2;      % [R D Ang]
         % to_plot = RD_map_abs(:,:,angleIdx); % [R D]
         to_plot = angslice(RD_map_abs, angleIdx);   % -> [R x D]
-        range_axis   = all_range_axis{globalFrameIdx};
+        range_axis = all_range_axis{globalFrameIdx};
         doppler_axis = all_doppler_axis{globalFrameIdx};
 
         % Keep the same range trimming as the other windows
-        max_range = 100;
+        max_range = maxRange;
         idx_range = find(range_axis <= max_range);
         to_plot = to_plot(idx_range, :);
         RD_map_slice_complex = RD_map_slice_complex(idx_range, :);
@@ -602,47 +669,185 @@ function interactive_txbf_viewer_gated()
         plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off;
 
-        % Fractional Fourier spectrum of gated Doppler profile
+        % === NEW: Fractional Fourier spectrum from slow-time (rangeFFT) ===
         axes(foldingWin.axFrft); cla(foldingWin.axFrft);
+        % UI label
         if isfield(foldingWin,'txtFrft') && isvalid(foldingWin.txtFrft)
             set(foldingWin.txtFrft,'String',sprintf('Order: %.1f',foldingWin.fracOrder));
         end
-        if isfield(foldingWin,'cbFrftLog') && isvalid(foldingWin.cbFrftLog)
-            set(foldingWin.cbFrftLog,'Value',foldingWin.logFrac);
+
+        % Require rangeFFT to compute slow-time transforms
+        assert(isstruct(D.RD_map) && isfield(D.RD_map,'rangeFFT') && ~isempty(D.RD_map.rangeFFT), ...
+            'RD_map.rangeFFT not found in this frame. Re-run processing to save rangeFFT.');
+
+        % R_slice: [R x nChirps x Ang] -> take current angle -> [R x nChirps]
+        R_slice = D.RD_map.rangeFFT;
+        if ndims(R_slice) == 3
+            R_slice = R_slice(:,:,angleIdx);
+        elseif ndims(R_slice) ~= 2
+            error('Unexpected dims for RD_map.rangeFFT');
         end
-        doppler_gated_complex = mean(RD_map_slice_complex(gate_idx,:),1);
-        doppler_power = abs(doppler_gated_complex).^2;
-        if isempty(doppler_gated_complex)
-            frft_spec = zeros(size(doppler_axis));
-            doppler_power = zeros(size(doppler_axis));
+
+        % Indices of rows to integrate (gate indices are on the trimmed axis)
+        rows = idx_range(gate_idx);
+        if isempty(rows)
+            frft_pow = zeros(1, params.dopplerFFTSize);
+            fft_pow  = zeros(1, params.dopplerFFTSize);
         else
-            frft_spec = abs(frft(doppler_gated_complex(:), foldingWin.fracOrder)).^2;
-            frft_spec = frft_spec(:).';
-            if numel(frft_spec) ~= numel(doppler_axis)
-                frft_spec = interp1(linspace(doppler_axis(1), doppler_axis(end), numel(frft_spec)), frft_spec, doppler_axis, 'linear', 'extrap');
+            % Setup
+            nFFT = params.dopplerFFTSize;
+            nCh  = size(R_slice, 2);
+            w    = hann_local(nCh);             % same window used in Doppler path
+
+            acc_frft = zeros(1, nFFT);
+            acc_fft  = zeros(1, nFFT);
+            for rr = rows(:).'
+                % Complex slow-time for one range bin
+                slow = R_slice(rr,:).';         % [nCh x 1]
+                slow = slow .* w;               % Doppler window
+
+                % Pad/trim to nFFT
+                if nFFT > nCh, slow_pad = [slow; zeros(nFFT-nCh,1)];
+                else,          slow_pad = slow(1:nFFT);
+                end
+
+                % Per-bin transforms (coherent in time, non-coherent across bins)
+                fr  = frft_m(slow_pad, foldingWin.fracOrder);         % length nFFT
+                Dk  = fftshift(fft(slow_pad, nFFT));                   % reference FFT
+
+                % Accumulate powers (non-coherent)
+                acc_frft = acc_frft + (abs(fr.')).^2;
+                acc_fft  = acc_fft  + (abs(Dk.')).^2;
             end
+
+            % Average powers across the gate
+            frft_pow = acc_frft / numel(rows);
+            fft_pow  = acc_fft  / numel(rows);
         end
+
+        % Plot
+        a = foldingWin.fracOrder;
+        isNearOne = abs(a - 1) < 1e-3;
 
         if foldingWin.logFrac
-            doppler_plot = 10*log10(max(doppler_power, eps));
-            frft_plot = 10*log10(max(frft_spec, eps));
+            frft_plot = 20*log10(max(frft_pow, eps));
+            fft_plot  = 20*log10(max(fft_pow,  eps));
             yLabelStr = 'Power (dB)';
-            titleStr = 'Doppler vs Fractional Fourier Spectrum (dB)';
         else
-            doppler_plot = doppler_power;
-            frft_plot = frft_spec;
+            frft_plot = frft_pow;
+            fft_plot  = fft_pow;
             yLabelStr = 'Power (linear)';
-            titleStr = 'Doppler vs Fractional Fourier Spectrum (linear)';
         end
 
-        plot(doppler_axis, doppler_plot, 'LineWidth',1.3, 'DisplayName','Existing Doppler spectrum'); hold on;
-        plot(doppler_axis, frft_plot, 'LineWidth',1.3, 'DisplayName',sprintf('FrFT spectrum (order %.1f)', foldingWin.fracOrder));
-        hold off;
-        legend('Location','best');
-        grid on;
-        xlabel('Velocity (m/s)');
-        ylabel(yLabelStr);
-        title(titleStr);
+        if isNearOne
+            % Same velocity axis for both when a ≈ 1
+            plot(doppler_axis, fft_plot,  'LineWidth',1.3, 'DisplayName','FFT Doppler (non-coh)'); hold on;
+            plot(doppler_axis, frft_plot, 'LineWidth',1.3, 'DisplayName','FRFT (a≈1, non-coh)');
+            hold off; grid on; legend('Location','best');
+            xlabel('Velocity (m/s)'); ylabel(yLabelStr);
+            title('Doppler vs FRFT (from slow-time, non-coherent over gate, a \approx 1)');
+        else
+            % General a: show on fractional-frequency bins
+            bins = ((0:params.dopplerFFTSize-1) - (params.dopplerFFTSize-1)/2) / params.dopplerFFTSize;
+            plot(bins, frft_plot, 'LineWidth',1.3, 'DisplayName', sprintf('FRFT (a=%.2f, non-coh)', a)); grid on;
+            legend('Location','best');
+            xlabel('Fractional frequency (normalized)'); ylabel(yLabelStr);
+            title('Fractional Fourier Spectrum (non-coherent over range gate)');
+        end
+
+        % % Build gated slow-time (complex), average across range gate -> column [nChirps x 1]
+        % slow = mean(R_slice(idx_range(gate_idx), :), 1).';
+        % nCh  = numel(slow);
+        % 
+        % % Use the SAME padding length as Doppler FFT to compare apples-to-apples
+        % nFFT = params.dopplerFFTSize;
+        % 
+        % % Window (Hann like the Doppler path) and pad/trim
+        % w = hann_local(nCh);      % hann(nCh)
+        % slow_win = slow .* w;
+        % 
+        % % Pad/trim to nFFT
+        % if nFFT > nCh
+        %     slow_pad = [slow_win; zeros(nFFT - nCh, 1)];
+        % else
+        %     slow_pad = slow_win(1:nFFT);
+        % end
+        % 
+        % % Reference Doppler from the same slow-time (for a≈1 overlay)
+        % % Dk = fftshift(fft(slow_pad, nFFT));
+        % Dk = fftshift(fft(ifftshift(slow_pad), nFFT)) / sqrt(nFFT);  % unitary, aligned || may not need this.
+        % doppler_power = abs(Dk).^2;
+        % 
+        % % FRFT from slow-time
+        % a = foldingWin.fracOrder;
+        % fr = frft_m(slow_pad, a); % length nFFT
+        % frft_power = abs(fr).^2;
+        % 
+        % % Plot logic: overlay only when a≈1, else show FRFT on fractional-frequency axis
+        % isNearOne = abs(a - 1) < 1e-3;
+        % if foldingWin.logFrac
+        %     dop_plot  = 20*log10(max(doppler_power, eps)) + 1;
+        %     frft_plot = 20*log10(max(frft_power,   eps));
+        %     yLabelStr = 'Power (dB)';
+        % else
+        %     dop_plot  = doppler_power;
+        %     frft_plot = frft_power;
+        %     yLabelStr = 'Power (linear)';
+        % end
+        % 
+        % if isNearOne
+        %     % Same units (velocity), direct overlay
+        %     plot(doppler_axis, dop_plot, 'LineWidth',1.3, 'DisplayName','FFT Doppler'); hold on;
+        %     plot(doppler_axis, frft_plot, 'LineWidth',1.3, 'DisplayName','FRFT (a≈1)');
+        %     hold off; grid on; legend('Location','best');
+        %     xlabel('Velocity (m/s)'); ylabel(yLabelStr);
+        %     title('Doppler vs FRFT (from slow-time, a \approx 1)');
+        % else
+        %     % General a: fractional-frequency (dimensionless) axis
+        %     bins = ((0:nFFT-1) - (nFFT-1)/2) / nFFT; % [-0.5,0.5)
+        %     plot(bins, frft_plot, 'LineWidth',1.3, 'DisplayName', sprintf('FRFT (a=%.2f)', a)); grid on;
+        %     legend('Location','best');
+        %     xlabel('Fractional frequency (normalized)'); ylabel(yLabelStr);
+        %     title('Fractional Fourier Spectrum (from slow-time)');
+        % end
+
+
+        % if isfield(foldingWin,'cbFrftLog') && isvalid(foldingWin.cbFrftLog)
+        %     set(foldingWin.cbFrftLog,'Value',foldingWin.logFrac);
+        % end
+        % doppler_gated_complex = mean(RD_map_slice_complex(gate_idx,:),1);
+        % doppler_power = abs(doppler_gated_complex).^2;
+        % if isempty(doppler_gated_complex)
+        %     frft_spec = zeros(size(doppler_axis));
+        %     doppler_power = zeros(size(doppler_axis));
+        % else
+        %     frft_spec = abs(frft_m(doppler_gated_complex(:), foldingWin.fracOrder)).^2;
+        %     frft_spec = frft_spec(:).';
+        %     if numel(frft_spec) ~= numel(doppler_axis)
+        %         frft_spec = interp1(linspace(doppler_axis(1), doppler_axis(end), numel(frft_spec)), frft_spec, doppler_axis, 'linear', 'extrap');
+        %     end
+        % end
+        % 
+        % if foldingWin.logFrac
+        %     doppler_plot = 10*log10(max(doppler_power, eps));
+        %     frft_plot = 10*log10(max(frft_spec, eps));
+        %     yLabelStr = 'Power (dB)';
+        %     titleStr = 'Doppler vs Fractional Fourier Spectrum (dB)';
+        % else
+        %     doppler_plot = doppler_power;
+        %     frft_plot = frft_spec;
+        %     yLabelStr = 'Power (linear)';
+        %     titleStr = 'Doppler vs Fractional Fourier Spectrum (linear)';
+        % end
+        % 
+        % plot(doppler_axis, doppler_plot, 'LineWidth',1.3, 'DisplayName','Existing Doppler spectrum'); hold on;
+        % plot(doppler_axis, frft_plot, 'LineWidth',1.3, 'DisplayName',sprintf('FrFT spectrum (order %.1f)', foldingWin.fracOrder));
+        % hold off;
+        % legend('Location','best');
+        % grid on;
+        % xlabel('Velocity (m/s)');
+        % ylabel(yLabelStr);
+        % title(titleStr);
     end
 
     function X = angslice(M, idx)

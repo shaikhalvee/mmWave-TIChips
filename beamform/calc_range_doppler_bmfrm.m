@@ -18,21 +18,6 @@ function [RD_map, range_axis, ...
     d = paramsConfig.d_BF;
     numSweep = paramsConfig.NumAnglesToSweep;
     D_RX = paramsConfig.D_RX;
-    % indices_1D = (startRangeInd: params.Samples_per_Chirp-lastRangeIndToThrow) ;
-
-    % old code
-    % window_1D = repmat(hann_local(num_samples), 1, num_chirps);
-    % window_2D = (repmat(hann_local(numDopplerBin), 1, numRangeBin)).';
-    % for Rxnum=1:length(Rx_Ant_Arr)
-    %     for sweep=1:num_sweep
-    %         radar_data_frame = squeeze(BF_data(:,:,Rxnum,sweep));        
-    % 
-    %         rangeFFT1(:,:,Rxnum,sweep) = fft(radar_data_frame.*window_1D,rangeFFTSize,1);
-    %         rangeDopFFT1(:,:,Rxnum,sweep) = fftshift(fft(rangeFFT1(:,:,Rxnum,sweep).*window_2D,DopplerFFTSize,2),2);
-    %         rangeDopFFT1(:,:,Rxnum,sweep) = rangeDopFFT1(:,:,Rxnum,sweep).*(exp(-1i*BF_MIMO_ref(Rxnum)*pi/180));
-    %     end
-    % end
-
 
     % Windowing
     num_samples = paramsConfig.Samples_per_Chirp;
@@ -53,7 +38,11 @@ function [RD_map, range_axis, ...
     radar_data_win = adcRadarData_txbf .* reshape(range_win,[],1,1,1);
 
     % Range FFT (dim 1)
-    range_fft    = fft(radar_data_win, paramsConfig.rangeFFTSize, 1);  % [range, chirps, Rx, angles]
+    range_fft = fft(radar_data_win, paramsConfig.rangeFFTSize, 1);  % [range, chirps, Rx, angles]
+
+    % Mean over Rx, keep Ang dimension no matter what:
+    tmpR = mean(range_fft, 3);                    % [R, chirp, 1, Ang]
+    tempRangeFFT = reshape(tmpR, [numRangeBin, num_chirps, numSweep]);  % [R, chirp, Ang]
 
     % Doppler window coefficient
     range_fft_win = range_fft .* reshape(doppler_win,1,[],1,1);
@@ -62,28 +51,30 @@ function [RD_map, range_axis, ...
     if dopplerClutterRemoval
         % Remove mean across slow time (chirps) for each [range, Rx, angle]
         range_fft_win = range_fft_win - mean(range_fft_win, 2);
-        % range_fft_win = bsxfun(@minus, range_fft_win, mean(range_fft_win,2));
-
-        % hpFilt = fir1(8, 0.05, 'high'); % FIR high-pass (fir1) filter
-        % hpFilt = [1, -2, 1]; % 3-pulse canceller
-        % range_fft_win = doppler_highpass_filter(range_fft_win, hpFilt);
 
         % Replace with mean
         % range_fft_win = range_fft_win - mean(range_fft_win, 2)/2;
     end
 
     % Doppler FFT (dim 2)
-    doppler_fft   = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
+    doppler_fft = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
 
     % RX calibration
     for rx = 1:num_rx
         doppler_fft(:,:,rx,:) = doppler_fft(:,:,rx,:) * exp(-1i * BF_MIMO_ref(rx) * pi/180);
     end
 
+    % Mean over Rx, keep Ang dimension:
+    tmpD = mean(doppler_fft, 3);                  % [R, D, 1, Ang]
+    tempDoppFFT = reshape(tmpD, [numRangeBin, numDopplerBin, numSweep]); % [R, D, Ang]
+
     % doppler_fft = [R, D, Rx, numAng]
     % Combine RX (max or sum, single angle so no angle FFT)
-    tempDoppFFT = doppler_fft(:,:,:,:);
-    RD_map = squeeze(mean(tempDoppFFT, 3));
+    RD_map = struct();
+    % tempRangeFFT = squeeze(mean(range_fft, 3));
+    % tempDoppFFT = squeeze(mean(doppler_fft, 3));
+    RD_map.rangeFFT = tempRangeFFT;
+    RD_map.dopplerFFT = tempDoppFFT;
     % RD_map = squeeze(mean(abs(doppler_fft), 3)); % [range, doppler], for 1 ang, for multiple [range, doppler, numAng]
 
     % Axes
@@ -97,7 +88,7 @@ function [RD_map, range_axis, ...
     lambda = c / (paramsConfig.Start_Freq_GHz * 1e9);
     v_max = lambda / (4 * PRT);
     % v_max = c * paramsConfig.Slope_MHzperus * 1e6 / (2 * paramsConfig.Start_Freq_GHz * 1e9);
-    doppler_axis = linspace(-v_max, v_max, paramsConfig.nchirp_loops);
+    doppler_axis = linspace(-v_max, v_max, numDopplerBin);
     paramsConfig.PRT = PRT;
     paramsConfig.lambda = lambda;
     paramsConfig.v_max = v_max;

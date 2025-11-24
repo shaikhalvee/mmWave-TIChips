@@ -16,3 +16,4 @@ folders = folders(~contains(folders, ignoreFolders));
 
 %% Now add paths safely
 addpath(folders{:});
+ 

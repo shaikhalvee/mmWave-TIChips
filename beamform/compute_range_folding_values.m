@@ -31,7 +31,7 @@ function [P, j_best, F_by_j] = compute_range_folding_values(RD_slice, jmin, jmax
                 end
                 val = max(col_means);  % Fi(j)
             end
-            if nargout >= 3, F_by_j(r, jj) = val; end
+            if nargout >= 3, F_by_j(r, jj) = val; end % F_i(j) for bin r, fold j
             if val > best_val
                 best_val = val; best_j = j;
             end
