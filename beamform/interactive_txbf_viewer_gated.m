@@ -22,14 +22,14 @@ function interactive_txbf_viewer_gated()
     all_range_angle_stich = config_data.all_range_angle_stich;
 
     % Normalize each entry to have angle as 2nd dim (Nrange x Nangle, with Nangle>=1)
-    for k = 1:numel(all_range_angle_stich)
-        A = all_range_angle_stich{k};
+    for i = 1:numel(all_range_angle_stich)
+        A = all_range_angle_stich{i};
         if isvector(A)
             % Make it Nrange x 1
-            all_range_angle_stich{k} = A(:);
+            all_range_angle_stich{i} = A(:);
         elseif ndims(A) == 3
             % Your code later uses squeeze(..., :, :, 1); keep 2D Nrange x Nangle
-            all_range_angle_stich{k} = squeeze(A(:,:,1));
+            all_range_angle_stich{i} = squeeze(A(:,:,1));
             % else: already 2D => leave as is
         end
     end
@@ -57,8 +57,8 @@ function interactive_txbf_viewer_gated()
     % ---- Folding window state (created on demand) ----
     foldingWin.hFig3  = [];
     foldingWin.exists = false;
-    foldingWin.jmin   = 2;   % folding search range, per paper
-    foldingWin.jmax   = 20;
+    foldingWin.jmin   = 2;   % folding sea rch range, per paper
+    foldingWin.jmax   = 32;
     foldingWin.fracOrder = 0.5; % FrFT order slider default
     foldingWin.logFrac = true; % Plot fractional spectrum in dB by default
 
@@ -172,7 +172,8 @@ function interactive_txbf_viewer_gated()
             RD_dB = 20*log10(to_plot + eps);       % convert to dB
             % Option A: fixed dynamic range under the peak
             maxVal = max(RD_dB(:));
-            dynRange = 120;   % show top 120 dB (tune 30–60)
+            dynRange = 90;   % show top 120 dB (tune 30–60)
+            
             imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]);
             % imagesc(doppler_axis, range_axis, RD_dB);
             title('Range-Doppler Map (dB)', 'FontSize', 16);
@@ -378,20 +379,20 @@ function interactive_txbf_viewer_gated()
         % Bottom controls
         uicontrol(droneWin.hFig2,'Style','checkbox','String','Auto gate','Value',1, ...
             'Units','normalized','Position',[0.02 0.01 0.1 0.05], ...
-            'Callback',@(s,~) setAutoGate2(s));
+            'Callback',@(s,~) setAutoGate(s));
         uicontrol(droneWin.hFig2,'Style','text','String','Center(m):', ...
             'Units','normalized','Position',[0.14 0.01 0.08 0.04],'HorizontalAlignment','right');
         droneWin.edCenter = uicontrol(droneWin.hFig2,'Style','edit','String',num2str(droneWin.gate_center_m), ...
             'Units','normalized','Position',[0.23 0.012 0.06 0.05], ...
-            'Callback',@(s,~) setGateParams2());
+            'Callback',@(s,~) setGateParams());
         uicontrol(droneWin.hFig2,'Style','text','String','Width(m):', ...
             'Units','normalized','Position',[0.31 0.01 0.08 0.04],'HorizontalAlignment','right');
         droneWin.edWidth  = uicontrol(droneWin.hFig2,'Style','edit','String',num2str(droneWin.gate_width_m), ...
             'Units','normalized','Position',[0.40 0.012 0.06 0.05], ...
-            'Callback',@(s,~) setGateParams2());
+            'Callback',@(s,~) setGateParams());
         droneWin.btPick   = uicontrol(droneWin.hFig2,'Style','pushbutton','String','Pick gate on Range', ...
             'Units','normalized','Position',[0.50 0.012 0.15 0.05], ...
-            'Callback',@pickGateFromRange2);
+            'Callback',@pickGateFromRange);
 
         droneWin.txtInfo  = uicontrol(droneWin.hFig2,'Style','text','String','', ...
             'Units','normalized','Position',[0.70 0.012 0.28 0.05],'HorizontalAlignment','left');
@@ -402,16 +403,16 @@ function interactive_txbf_viewer_gated()
         openFoldingWindow();
 
         % Secondary window control callbacks
-        function setAutoGate2(src)
+        function setAutoGate(src)
             droneWin.auto_gate = logical(get(src,'Value'));
             updateDroneWindow();
         end
-        function setGateParams2()
+        function setGateParams()
             droneWin.gate_center_m = str2double(get(droneWin.edCenter,'String'));
             droneWin.gate_width_m  = str2double(get(droneWin.edWidth,'String'));
             updateDroneWindow();
         end
-        function pickGateFromRange2(~,~)
+        function pickGateFromRange(~,~)
             if ~isvalid(droneWin.hFig2), return; end
             figure(droneWin.hFig2); axes(droneWin.axRange);
             [x,~] = ginput(1);
@@ -476,7 +477,8 @@ function interactive_txbf_viewer_gated()
             maxVal   = max(RD_dB(:));
             dynRange = 120;                          % show top 50 dB (tune 30–60)
             
-            imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]); axis xy;
+            % imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]); axis xy;
+            imagesc(doppler_axis, range_axis, RD_dB); axis xy;
             title('RD (dB) with Gate');
         else
             imagesc(doppler_axis, range_axis, to_plot); axis xy;
@@ -699,8 +701,8 @@ function interactive_txbf_viewer_gated()
 
         % ---- Bottom: μ_D(j*) (columnwise array) ----
         axes(foldingWin.axMu); cla(foldingWin.axMu);
-        k = 0:(numel(mu)-1);    % 0-based index (matches your paper indexing)
-        plot(k, mu, '-o','LineWidth',1.3); hold on;
+        i = 0:(numel(mu)-1);    % 0-based index (matches your paper indexing)
+        plot(i, mu, '-o','LineWidth',1.3); hold on;
         yline(mu_bar,'--','Mean \mu','LabelHorizontalAlignment','left');
         grid on;
         xlabel('Column index k');

@@ -32,7 +32,7 @@ function [P, j_best, F_by_j, S, S_norm, mu_best_all] = calc_smearing_degree(RD_s
             j = Jvals(jj);
             M = floor(L/j);
 
-            if M < 1
+            if M < 1 
                 val       = -Inf;
                 col_means = [];
             else

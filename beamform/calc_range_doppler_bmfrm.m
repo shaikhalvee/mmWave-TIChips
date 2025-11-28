@@ -44,17 +44,23 @@ function [RD_map, range_axis, ...
     tmpR = mean(range_fft, 3);                    % [R, chirp, 1, Ang]
     tempRangeFFT = reshape(tmpR, [numRangeBin, num_chirps, numSweep]);  % [R, chirp, Ang]
 
-    % Doppler window coefficient
-    range_fft_win = range_fft .* reshape(doppler_win,1,[],1,1);
+    % Doppler window coefficient [wrong placement]
+    % range_fft = range_fft .* reshape(doppler_win,1,[],1,1);
 
     % Doppler clutter removal
     if dopplerClutterRemoval
         % Remove mean across slow time (chirps) for each [range, Rx, angle]
-        range_fft_win = range_fft_win - mean(range_fft_win, 2);
+        range_fft_dc = range_fft - mean(range_fft, 2);
 
         % Replace with mean
         % range_fft_win = range_fft_win - mean(range_fft_win, 2)/2;
+    else
+        range_fft_dc = range_fft;
     end
+
+    % Doppler window coefficient
+    range_fft_win = range_fft_dc .* reshape(doppler_win,1,[],1,1);
+    % range_fft_win = range_fft_dc;
 
     % Doppler FFT (dim 2)
     doppler_fft = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
