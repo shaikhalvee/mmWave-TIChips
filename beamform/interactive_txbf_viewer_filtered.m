@@ -1,0 +1,636 @@
+function interactive_txbf_viewer_filtered()
+% INTERACTIVE_TX_BF_VIEWER_GATED
+% Interactive TX beamforming viewer for RANGE–DOPPLER maps:
+%   - Uses a single global range_axis & doppler_axis for all frames
+%   - Parses ONLY the frame_*.mat files in the given folder
+%   - Handles arbitrary physical frame IDs (e.g., 112, 145, 345)
+%   - No dependence on config.mat / per-frame axes or range_angle_stich
+%   - No FRFT; only RD map, Doppler profile, gate, and folding metrics
+%
+% For each frame_XXXXX.mat, this assumes:
+%   RD_map.dopplerFFT : [Nrange x Ndoppler x Nangle] or [Nrange x Ndoppler]
+
+    % ===================== USER SETTINGS =====================
+    frames_per_batch = 300;
+
+    data_folder  = './output/out_txbf_13_100_150_255_2/';
+    % IMPORTANT: this is your updated folder with only the selected frames
+    frame_folder = [data_folder 'rangeDopplerFFTmap_11_filtered2/'];
+    params_folder = data_folder;
+
+    % Max range to display (meters)
+    maxRange = 60;
+
+    % ===================== LIST FRAME FILES =====================
+    frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
+    assert(~isempty(frame_files), ...
+        'No frame_*.mat files found in %s', frame_folder);
+
+    total_frames = numel(frame_files);
+
+    % Parse physical frame IDs from filenames: frame_00112.mat -> 112
+    frame_ids = zeros(total_frames,1);
+    for k = 1:total_frames
+        tok = regexp(frame_files(k).name, 'frame_(\d+)\.mat', 'tokens', 'once');
+        assert(~isempty(tok), 'Unexpected frame filename: %s', frame_files(k).name);
+        frame_ids(k) = str2double(tok{1});
+    end
+
+    % ===================== LOAD PARAMS & BUILD AXES =====================
+    params_file = dir(fullfile(params_folder, '*_params.mat'));
+    assert(~isempty(params_file), 'Cannot find *_params.mat in %s', params_folder);
+    tmp = load(fullfile(params_folder, params_file(1).name), 'params');
+    params = tmp.params;
+
+    anglesToSteer = params.anglesToSteer;
+    if isfield(params, 'NumAnglesToSweep')
+        nAngles = params.NumAnglesToSweep;
+    else
+        nAngles = numel(anglesToSteer);
+    end
+
+    % Build single global range & Doppler axes
+    c = 3e8;
+
+    if isfield(params, 'fs')
+        fs = params.fs;
+    elseif isfield(params, 'samplingRate')
+        fs = params.samplingRate;
+    else
+        error('params.fs or params.samplingRate not found in params.');
+    end
+
+    if isfield(params, 'rangeFFTSize')
+        rangeFFTSize = params.rangeFFTSize;
+    else
+        error('params.rangeFFTSize not found in params.');
+    end
+
+    if isfield(params, 'slope')
+        slope = params.slope;
+    else
+        error('params.slope not found in params.');
+    end
+
+    if isfield(params, 'dopplerFFTSize')
+        numDopplerBin = params.dopplerFFTSize;
+    else
+        error('params.dopplerFFTSize not found in params.');
+    end
+
+    if isfield(params, 'v_max')
+        v_max = params.v_max;
+    else
+        error('params.v_max not found in params.');
+    end
+
+    % Axes used for all frames
+    range_axis_full   = (0:rangeFFTSize-1).' * (c * fs) / (2 * slope * rangeFFTSize);
+    doppler_axis_full = linspace(-v_max, v_max, numDopplerBin);
+
+    % ===================== BATCH STATE =====================
+    curr_batch_start = 1;
+    curr_batch_end   = min(frames_per_batch, total_frames);
+    batch_data = {};
+
+    % ---- Drone Doppler window state ----
+    droneWin.hFig2 = [];
+    droneWin.exists = false;
+    droneWin.auto_gate = true;
+    droneWin.gate_center_m = 80;   % initial guess (m)
+    droneWin.gate_width_m  = 5;    % meters
+    droneWin.v_exclude     = 0.05; % m/s region around 0 to ignore for auto-detect
+
+    % ---- Folding window state ----
+    foldingWin.hFig3  = [];
+    foldingWin.exists = false;
+    foldingWin.jmin   = 2;   % folding search range
+    foldingWin.jmax   = 32;
+
+    % ===================== MAIN WINDOW UI =====================
+    hFig = figure('Name', 'TX Beamforming Interactive Viewer (Gated)', ...
+                  'NumberTitle', 'off', 'Position', [100 100 1200 800]);
+
+    hNext = uicontrol('Style', 'pushbutton', 'String', 'Next', ...
+        'Position', [600 20 80 25], 'Callback', @next_batch);
+    hPrev = uicontrol('Style', 'pushbutton', 'String', 'Previous', ...
+        'Position', [20 20 80 25], 'Callback', @prev_batch);
+
+    batch_frames = curr_batch_end - curr_batch_start + 1;
+    hFrame = uicontrol('Style', 'slider', 'Min', 1, 'Max', batch_frames, ...
+        'Value', 1, 'SliderStep', [1/max(1,batch_frames-1), 1/max(1,batch_frames-1)], ...
+        'Position', [120 20 350 20]);
+
+    hAngle = uicontrol('Style', 'slider', 'Min', 1, 'Max', nAngles, ...
+        'Value', 1, 'SliderStep', [1/max(1,nAngles-1), 1/max(1,nAngles-1)], ...
+        'Position', [750 20 350 20]);
+    if nAngles == 1
+        set(hAngle, 'Enable', 'off');
+    end
+
+    hFrameLabel = uicontrol('Style', 'text', 'Position', [470 20 120 20], ...
+        'String', sprintf('Frame 1 of %d (ID = %d)', total_frames, frame_ids(1)), ...
+        'HorizontalAlignment', 'left');
+    hAngleLabel = uicontrol('Style', 'text', 'Position', [1120 20 100 20], ...
+        'String', sprintf('Angle: %d°', anglesToSteer(1)), 'HorizontalAlignment', 'left');
+
+    % Buttons for secondary windows
+    uicontrol('Style','pushbutton','String','Drone Doppler…', ...
+        'Units','normalized','Position',[0.32 0.04 0.12 0.04], ...
+        'Callback',@openDroneWindow);
+    uicontrol('Style','pushbutton','String','Folding…', ...
+        'Units','normalized','Position',[0.46 0.04 0.12 0.04], ...
+        'Callback',@openFoldingWindow);
+
+    % Axes + toggles
+    hAx1 = subplot(2,2,1);  % RD map
+    hCB1 = uicontrol('Style', 'checkbox', 'String', 'Log (dB)', ...
+        'Units', 'normalized', 'Position', [0.11 0.51 0.05 0.03], 'Value', 1, 'Parent', hFig);
+    hAx2 = subplot(2,2,2);  % (unused)
+    hCB2 = uicontrol('Style', 'checkbox', 'String', 'Log (dB)', ...
+        'Units', 'normalized', 'Position', [0.55 0.51 0.05 0.03], 'Value', 1, 'Parent', hFig);
+    hAx3 = subplot(2,2,3);  % Doppler profile
+    hCB3 = uicontrol('Style', 'checkbox', 'String', 'Log (dB)', ...
+        'Units', 'normalized', 'Position', [0.11 0.04 0.05 0.03], 'Value', 1, 'Parent', hFig);
+    hAx4 = subplot(2,2,4);  % (unused)
+
+    % Use only RD map (top) and Doppler spectrum (bottom)
+    set(hAx2, 'Visible', 'off');
+    set(hAx4, 'Visible', 'off');
+    set(hAx1, 'Position', [0.07 0.55 0.88 0.40]); % RD
+    set(hAx3, 'Position', [0.07 0.08 0.88 0.40]); % Doppler
+
+    % Load first batch and draw
+    load_current_batch();
+
+    set(hFrame, 'Callback', @updatePlots);
+    set(hAngle, 'Callback', @updatePlots);
+    set(hCB1, 'Callback', @updatePlots);
+    set(hCB2, 'Callback', @updatePlots);
+    set(hCB3, 'Callback', @updatePlots);
+
+    updatePlots();
+
+    % ===================== NESTED FUNCTIONS =====================
+
+    function updatePlots(~,~)
+        frameIdx = round(get(hFrame, 'Value'));                       % index within current batch
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
+
+        isLog1 = get(hCB1, 'Value');
+        isLog3 = get(hCB3, 'Value');
+
+        % Global index into frame_files / frame_ids
+        globalIdx = curr_batch_start + frameIdx - 1;
+        frameId   = frame_ids(globalIdx);
+
+        set(hFrameLabel, 'String', ...
+            sprintf('Frame %d of %d (ID = %d)', globalIdx, total_frames, frameId));
+        set(hAngleLabel, 'String', ...
+            sprintf('Angle: %d°', anglesToSteer(min(angleIdx, numel(anglesToSteer)))));
+
+        % Load data from batch_data
+        D = batch_data{frameIdx};
+        RD_map = D.RD_map.dopplerFFT;             % [R x D x Ang] or [R x D]
+        RD_map_abs_sq = abs(RD_map).^2;
+        to_plot = angslice(RD_map_abs_sq, angleIdx);   % [R x D]
+
+        % Align dimensions with global axes & trim range
+        [range_axis, doppler_axis, to_plot, ~] = ...
+            align_and_trim_axes(range_axis_full, doppler_axis_full, to_plot, maxRange);
+
+        % -------- RD Map --------
+        axes(hAx1); cla(hAx1);
+        if isLog1
+            RD_dB = 20*log10(to_plot + eps);
+            maxVal = max(RD_dB(:));
+            dynRange = 90;
+            imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]);
+            title('Range-Doppler Map (dB)', 'FontSize', 16);
+        else
+            imagesc(doppler_axis, range_axis, to_plot);
+            title('Range-Doppler Map (linear)', 'FontSize', 16);
+        end
+        xlabel('Doppler (m/s)', 'FontSize', 16);
+        ylabel('Range (m)', 'FontSize', 16);
+        colorbar; axis xy;
+        set(gca, 'FontSize', 16);
+
+        % -------- Doppler Profile (all ranges) --------
+        axes(hAx3); cla(hAx3);
+        doppler_prof = mean(to_plot,1);
+        if isLog3
+            plot(doppler_axis, 20*log10(max(doppler_prof, 1) + eps), 'LineWidth', 1.0);
+            title('Doppler Profile (All Ranges, dB)', 'FontSize', 16);
+            ylabel('Power (dB)', 'FontSize', 16);
+        else
+            plot(doppler_axis, doppler_prof, 'LineWidth', 1.0);
+            title('Doppler Profile (All Ranges, linear)', 'FontSize', 16);
+            ylabel('Power (linear)', 'FontSize', 16);
+        end
+        xlabel('Velocity (m/s)', 'FontSize', 16);
+        set(gca, 'FontSize', 16);
+
+        % Keep secondary windows synced
+        updateDroneWindow();
+        updateFoldingWindow();
+    end
+
+    function load_current_batch()
+        batch_data = cell(1, curr_batch_end - curr_batch_start + 1);
+        for i = 1:(curr_batch_end - curr_batch_start + 1)
+            globalIdx = curr_batch_start + i - 1;
+            tmp = load(fullfile(frame_files(globalIdx).folder, ...
+                                frame_files(globalIdx).name));
+
+            % --- Compatibility & shape normalization ---
+            if isfield(tmp,'RD_map')
+                if ~isstruct(tmp.RD_map)
+                    % Legacy numeric -> wrap as dopplerFFT-only
+                    DF = tmp.RD_map;
+                    if ndims(DF) == 2
+                        DF = reshape(DF, size(DF,1), size(DF,2), 1);
+                    end
+                    tmp.RD_map = struct('dopplerFFT', DF, 'rangeFFT', []);
+                else
+                    % Struct form; support legacy field names
+                    if isfield(tmp.RD_map,'rangeDopplerMap') && ~isfield(tmp.RD_map,'dopplerFFT')
+                        tmp.RD_map.dopplerFFT = tmp.RD_map.rangeDopplerMap;
+                    end
+                    % Ensure dopplerFFT is [R x D x Ang]
+                    if isfield(tmp.RD_map,'dopplerFFT')
+                        DF = tmp.RD_map.dopplerFFT;
+                        if ndims(DF) == 2
+                            DF = reshape(DF, size(DF,1), size(DF,2), 1);
+                        end
+                        tmp.RD_map.dopplerFFT = DF;
+                    end
+                    % Ensure rangeFFT is [R x nChirps x Ang] or empty
+                    if isfield(tmp.RD_map,'rangeFFT') && ~isempty(tmp.RD_map.rangeFFT)
+                        RF = tmp.RD_map.rangeFFT;
+                        if ndims(RF) == 2
+                            RF = reshape(RF, size(RF,1), size(RF,2), 1);
+                        end
+                        tmp.RD_map.rangeFFT = RF;
+                    else
+                        tmp.RD_map.rangeFFT = [];
+                    end
+                end
+            else
+                error('Frame file missing RD_map: %s', frame_files(globalIdx).name);
+            end
+
+            batch_data{i} = tmp;
+        end
+
+        batch_frames = curr_batch_end - curr_batch_start + 1;
+        set(hFrame, 'Min', 1, 'Max', batch_frames, 'Value', 1, ...
+            'SliderStep', [1/max(1,batch_frames-1), 1/max(1,batch_frames-1)]);
+        updatePlots();
+    end
+
+    function next_batch(~,~)
+        if curr_batch_end < total_frames
+            curr_batch_start = curr_batch_start + frames_per_batch;
+            curr_batch_end   = min(curr_batch_start + frames_per_batch - 1, total_frames);
+            load_current_batch();
+        end
+    end
+
+    function prev_batch(~,~)
+        if curr_batch_start > 1
+            curr_batch_start = max(1, curr_batch_start - frames_per_batch);
+            curr_batch_end   = min(curr_batch_start + frames_per_batch - 1, total_frames);
+            load_current_batch();
+        end
+    end
+
+    % ===================== DRONE WINDOW =====================
+    function openDroneWindow(~,~)
+        if droneWin.exists && isvalid(droneWin.hFig2)
+            figure(droneWin.hFig2);
+            if ~foldingWin.exists || ~isvalid(foldingWin.hFig3)
+                openFoldingWindow();
+            end
+            return;
+        end
+
+        droneWin.hFig2 = figure('Name','Drone-Only Doppler','NumberTitle','off', ...
+                                'Position',[150 150 900 600]);
+
+        t = tiledlayout(droneWin.hFig2,2,2,'Padding','compact','TileSpacing','compact');
+        droneWin.axRD    = nexttile(t,1);     % RD
+        droneWin.axRange = nexttile(t,2);     % Range
+        droneWin.axDopp  = nexttile(t,[1 2]); % Doppler (wide)
+
+        % Bottom controls
+        uicontrol(droneWin.hFig2,'Style','checkbox','String','Auto gate','Value',1, ...
+            'Units','normalized','Position',[0.02 0.01 0.1 0.05], ...
+            'Callback',@(s,~) setAutoGate(s));
+        uicontrol(droneWin.hFig2,'Style','text','String','Center(m):', ...
+            'Units','normalized','Position',[0.14 0.01 0.08 0.04],'HorizontalAlignment','right');
+        droneWin.edCenter = uicontrol(droneWin.hFig2,'Style','edit','String',num2str(droneWin.gate_center_m), ...
+            'Units','normalized','Position',[0.23 0.012 0.06 0.05], ...
+            'Callback',@(s,~) setGateParams());
+        uicontrol(droneWin.hFig2,'Style','text','String','Width(m):', ...
+            'Units','normalized','Position',[0.31 0.01 0.08 0.04],'HorizontalAlignment','right');
+        droneWin.edWidth  = uicontrol(droneWin.hFig2,'Style','edit','String',num2str(droneWin.gate_width_m), ...
+            'Units','normalized','Position',[0.40 0.012 0.06 0.05], ...
+            'Callback',@(s,~) setGateParams());
+        droneWin.btPick   = uicontrol(droneWin.hFig2,'Style','pushbutton','String','Pick gate on Range', ...
+            'Units','normalized','Position',[0.50 0.012 0.15 0.05], ...
+            'Callback',@pickGateFromRange);
+
+        droneWin.txtInfo  = uicontrol(droneWin.hFig2,'Style','text','String','', ...
+            'Units','normalized','Position',[0.70 0.012 0.28 0.05],'HorizontalAlignment','left');
+
+        droneWin.exists = true;
+        updateDroneWindow();
+        openFoldingWindow(); % keep folding window in sync
+
+        function setAutoGate(src)
+            droneWin.auto_gate = logical(get(src,'Value'));
+            updateDroneWindow();
+        end
+        function setGateParams()
+            droneWin.gate_center_m = str2double(get(droneWin.edCenter,'String'));
+            droneWin.gate_width_m  = str2double(get(droneWin.edWidth,'String'));
+            updateDroneWindow();
+        end
+        function pickGateFromRange(~,~)
+            if ~isvalid(droneWin.hFig2), return; end
+            figure(droneWin.hFig2); axes(droneWin.axRange);
+            [x,~] = ginput(1);
+            if ~isempty(x)
+                droneWin.gate_center_m = x;
+                set(droneWin.edCenter,'String',sprintf('%.2f',x));
+                droneWin.auto_gate = false;
+                updateDroneWindow();
+            end
+        end
+    end
+
+    function updateDroneWindow()
+        if ~droneWin.exists || ~isvalid(droneWin.hFig2)
+            return;
+        end
+
+        frameIdx = round(get(hFrame, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
+        globalIdx = curr_batch_start + frameIdx - 1;
+        frameId   = frame_ids(globalIdx);
+
+        isLog1 = get(hCB1, 'Value');
+        isLog2 = get(hCB2, 'Value');
+        isLog3 = get(hCB3, 'Value');
+
+        D = batch_data{frameIdx};
+        RD_FFTmap = D.RD_map.dopplerFFT;
+        RD_map_abs = abs(RD_FFTmap).^2;
+        to_plot = angslice(RD_map_abs, angleIdx);       % [R x D] power
+
+        % Align & trim with global axes
+        [range_axis, doppler_axis, to_plot, ~] = ...
+            align_and_trim_axes(range_axis_full, doppler_axis_full, to_plot, maxRange);
+
+        % Compute gate
+        [gate_idx, gate_center, gate_width] = compute_gate_for_drone( ...
+            to_plot, range_axis, doppler_axis, droneWin.auto_gate, ...
+            droneWin.gate_center_m, droneWin.gate_width_m, droneWin.v_exclude);
+
+        % Sync gate params in UI
+        droneWin.gate_center_m = gate_center;
+        droneWin.gate_width_m  = gate_width;
+        if isvalid(droneWin.edCenter)
+            set(droneWin.edCenter,'String',sprintf('%.2f',gate_center));
+        end
+        if isvalid(droneWin.edWidth)
+            set(droneWin.edWidth, 'String',sprintf('%.2f',gate_width));
+        end
+
+        % ----- RD map with gate band -----
+        axes(droneWin.axRD); cla(droneWin.axRD);
+        if isLog1
+            RD_dB = 20*log10(to_plot + eps);
+            imagesc(doppler_axis, range_axis, RD_dB); axis xy;
+            title('RD (dB) with Gate');
+        else
+            imagesc(doppler_axis, range_axis, to_plot); axis xy;
+            title('RD (linear) with Gate');
+        end
+        xlabel('Doppler (m/s)'); ylabel('Range (m)');
+        hold on;
+        half_w = gate_width/2;
+        patch([min(doppler_axis) max(doppler_axis) max(doppler_axis) min(doppler_axis)], ...
+              [gate_center-half_w gate_center-half_w gate_center+half_w gate_center+half_w], ...
+              'w','FaceAlpha',0.08,'EdgeColor','w','LineStyle','--');
+        hold off; colorbar;
+
+        % ----- Range profile with gate overlay -----
+        axes(droneWin.axRange); cla(droneWin.axRange);
+        rp = mean(to_plot,2);
+        if isLog2
+            plot(range_axis, 20*log10(max(rp,2)+eps),'LineWidth',1.0); hold on;
+            plot(range_axis(gate_idx),20*log10(max(rp(gate_idx),2)+eps),'LineWidth',2.0);
+            title('Range Profile (dB)'); ylabel('Power (dB)');
+        else
+            plot(range_axis, rp,'LineWidth',1.0); hold on;
+            plot(range_axis(gate_idx), rp(gate_idx),'LineWidth',2.0);
+            title('Range Profile (linear)'); ylabel('Power (linear)');
+        end
+        xlabel('Range (m)');
+        yl = ylim;
+        plot([gate_center-half_w gate_center-half_w], yl, '--');
+        plot([gate_center+half_w gate_center+half_w], yl, '--');
+        hold off; grid on;
+
+        % ----- Folding per range -----
+        [P_fold, j_best, ~] = calc_folding_concentration(to_plot, foldingWin.jmin, foldingWin.jmax);
+        P_gate_mean = mean(P_fold(gate_idx));
+        P_oth_mean  = mean(P_fold(setdiff(1:numel(range_axis), gate_idx)));
+
+        [~, rel_idx_max] = max(P_fold(gate_idx));
+        rbin_peak        = gate_idx(rel_idx_max);
+        fold_size_rBin   = j_best(rbin_peak);
+
+        % ----- Drone-only Doppler (gated rows only) -----
+        axes(droneWin.axDopp); cla(droneWin.axDopp);
+        doppler_gated = mean(to_plot(gate_idx,:),1);
+        if isLog3
+            plot(doppler_axis, 20*log10(max(doppler_gated,1)+eps), 'LineWidth',1.5);
+            title('Drone-Only Doppler (dB)'); ylabel('Power (dB)');
+        else
+            plot(doppler_axis, doppler_gated, 'LineWidth',1.5);
+            title('Drone-Only Doppler (linear)'); ylabel('Power (linear)');
+        end
+        xlabel('Velocity (m/s)'); grid on;
+
+        set(droneWin.txtInfo,'String', sprintf(['Frame ID %d | Angle %d° | Gate %.2fm±%.2fm | ' ...
+                 'Fold(gate)=%.1f, Fold(else)=%.1f | fold size j*=%d'], ...
+            frameId, anglesToSteer(angleIdx), ...
+            gate_center, gate_width, ...
+            P_gate_mean, P_oth_mean, round(fold_size_rBin)));
+
+        updateFoldingWindow();
+    end
+
+    % ===================== FOLDING WINDOW =====================
+    function openFoldingWindow(~,~)
+        if foldingWin.exists && isvalid(foldingWin.hFig3)
+            figure(foldingWin.hFig3);
+            return;
+        end
+
+        foldingWin.hFig3 = figure('Name','Gate Concentration (PMM visibility)', ...
+                'NumberTitle','off', 'Position',[220 220 950 620], ...
+                'CloseRequestFcn',@closeFoldingWindow);
+
+        tFold = tiledlayout(foldingWin.hFig3,2,1,'Padding','compact','TileSpacing','compact');
+        foldingWin.axFold = nexttile(tFold,1);   % P_i vs range
+        foldingWin.axMu   = nexttile(tFold,2);   % C_i vs range (gate only)
+
+        % Controls to tweak jmin/jmax
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized', ...
+            'Position',[0.08 0.02 0.05 0.05],'String','j_{min}', ...
+            'HorizontalAlignment','right');
+        foldingWin.edJmin = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized', ...
+            'Position',[0.14 0.02 0.06 0.05],'String',num2str(foldingWin.jmin), ...
+            'Callback',@(s,~) setFoldParams());
+        uicontrol(foldingWin.hFig3,'Style','text','Units','normalized', ...
+            'Position',[0.22 0.02 0.05 0.05],'String','j_{max}', ...
+            'HorizontalAlignment','right');
+        foldingWin.edJmax = uicontrol(foldingWin.hFig3,'Style','edit','Units','normalized', ...
+            'Position',[0.28 0.02 0.06 0.05],'String',num2str(foldingWin.jmax), ...
+            'Callback',@(s,~) setFoldParams());
+
+        foldingWin.exists = true;
+        updateFoldingWindow();
+
+        function setFoldParams()
+            foldingWin.jmin = max(2, round(str2double(get(foldingWin.edJmin,'String'))));
+            foldingWin.jmax = max(foldingWin.jmin, round(str2double(get(foldingWin.edJmax,'String'))));
+            set(foldingWin.edJmin,'String',num2str(foldingWin.jmin));
+            set(foldingWin.edJmax,'String',num2str(foldingWin.jmax));
+            updateFoldingWindow();
+        end
+
+        function closeFoldingWindow(src, ~)
+            foldingWin.exists = false;
+            delete(src);
+        end
+    end
+
+    function updateFoldingWindow()
+        if ~foldingWin.exists || ~isvalid(foldingWin.hFig3)
+            return;
+        end
+
+        frameIdx = round(get(hFrame, 'Value'));
+        angleIdx = min(max(1, round(get(hAngle,'Value'))), nAngles);
+
+        % Build RD slice [R x D] (power)
+        D = batch_data{frameIdx};
+        rangeDopplerFFTmap = D.RD_map.dopplerFFT;
+        RD_map_abs = abs(rangeDopplerFFTmap).^2;
+        to_plot = angslice(RD_map_abs, angleIdx);   % [R x D]
+
+        % Align & trim
+        [range_axis, doppler_axis, to_plot, ~] = ...
+            align_and_trim_axes(range_axis_full, doppler_axis_full, to_plot, maxRange);
+
+        % Same gate as drone window
+        [gate_idx, gate_center, gate_width] = compute_gate_for_drone( ...
+            to_plot, range_axis, doppler_axis, droneWin.auto_gate, ...
+            droneWin.gate_center_m, droneWin.gate_width_m, droneWin.v_exclude);
+
+        % Folding + concentration
+        [P_fold, j_best, ~, cnctr_ratio, ~, ~] = ...
+            calc_folding_concentration(to_plot, foldingWin.jmin, foldingWin.jmax);
+
+        % ---- Top: folding per range ----
+        axes(foldingWin.axFold); cla(foldingWin.axFold);
+        plot(range_axis, P_fold, 'LineWidth',1.3);
+        grid on;
+        xlabel('Range (m)');
+        ylabel('Folding value P_i');
+        title(sprintf('Folding per range (j = %d..%d)', foldingWin.jmin, foldingWin.jmax));
+
+        yl = ylim; half_w = gate_width/2; hold on;
+        plot([gate_center-half_w gate_center-half_w], yl, '--');
+        plot([gate_center+half_w gate_center+half_w], yl, '--');
+        hold off;
+
+        % ---- Bottom: concentration C_i for gated ranges only ----
+        axes(foldingWin.axMu); cla(foldingWin.axMu);
+
+        if isempty(gate_idx)
+            title('No gated range bins');
+            xlabel('Range (m)');
+            ylabel('Concentration C_i');
+            grid on;
+            return;
+        end
+
+        rgate  = range_axis(gate_idx);
+        C_gate = cnctr_ratio(gate_idx);
+        P_gate = P_fold(gate_idx);
+        j_gate = j_best(gate_idx);
+
+        [~, idx_maxP] = max(P_gate);
+        r_at_max   = rgate(idx_maxP);
+        j_at_max   = j_gate(idx_maxP);
+        C_at_Pmax  = C_gate(idx_maxP);
+
+        plot(rgate, C_gate, '-o', 'LineWidth',1.5); hold on;
+        plot(r_at_max, C_at_Pmax, 'rx', 'MarkerSize',10, 'LineWidth',1.8);
+        hold off; grid on;
+
+        xlabel('Range (m)');
+        ylabel('Concentration ratio C_i (gate only)');
+        title(sprintf(['Gate concentration C_i (j = %d..%d) | ', ...
+                       'C at max folding = %.2f at %.1f m (j^* = %d)'], ...
+            foldingWin.jmin, foldingWin.jmax, ...
+            C_at_Pmax, r_at_max, j_at_max));
+    end
+
+    % ===================== SMALL HELPERS =====================
+    function X = angslice(M, idx)
+        % Returns the [R x D] slice at angle idx, tolerating both 2D and 3D
+        if ndims(M) == 2
+            X = M;                       % already [R x D] for single angle
+        else
+            idx = min(max(1, idx), size(M,3));
+            X = M(:,:,idx);
+        end
+    end
+
+    function [range_axis, doppler_axis, M_trim, idx_range] = ...
+                 align_and_trim_axes(range_axis_full_in, doppler_axis_full_in, M, maxRangeM)
+        % Ensure RD matrix M and axes lengths match, then trim to maxRangeM.
+        Nr = size(M,1);
+        Nd = size(M,2);
+        Nr_full = numel(range_axis_full_in);
+        Nd_full = numel(doppler_axis_full_in);
+
+        Nr_use = min(Nr, Nr_full);
+        Nd_use = min(Nd, Nd_full);
+
+        M_trim = M(1:Nr_use, 1:Nd_use);
+        r = range_axis_full_in(1:Nr_use);
+        d = doppler_axis_full_in(1:Nd_use);
+
+        if isempty(maxRangeM)
+            idx_range = 1:Nr_use;
+        else
+            idx_range = find(r <= maxRangeM);
+            if isempty(idx_range)
+                idx_range = 1:Nr_use;
+            end
+        end
+
+        range_axis = r(idx_range);
+        M_trim     = M_trim(idx_range, :);
+        doppler_axis = d;
+    end
+
+end
