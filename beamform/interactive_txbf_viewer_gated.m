@@ -9,7 +9,7 @@ function interactive_txbf_viewer_gated()
     config_folder = data_folder;
 
     % maximum range
-    maxRange = 100; % in meters
+    maxRange = 40; % in meters
 
     % Get all frame file names
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
@@ -47,12 +47,12 @@ function interactive_txbf_viewer_gated()
     batch_data = {};
 
     % ---- Drone Doppler window state (created on demand) ----
-    droneWin.hFig2        = [];   % secondary figure
-    droneWin.exists       = false;
-    droneWin.auto_gate    = true;
+    droneWin.hFig2 = [];   % secondary figure
+    droneWin.exists = false;
+    droneWin.auto_gate = true;
     droneWin.gate_center_m = 80;   % initial guess (m)
-    droneWin.gate_width_m  = 5;    % meters
-    droneWin.v_exclude    = 0.5;   % m/s region around 0 to ignore for auto-detect
+    droneWin.gate_width_m = 5;    % meters
+    droneWin.v_exclude = 0.05;   % m/s region around 0 to ignore for auto-detect
 
     % ---- Folding window state (created on demand) ----
     foldingWin.hFig3  = [];
@@ -515,10 +515,13 @@ function interactive_txbf_viewer_gated()
         plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off; grid on;
 
-        % ===== Add TOP X-AXIS LABELS with folding values (no new plot) =====
-        jmin = 2; jmax = 20; % choose per your Doppler length / rotor cadence range
-        [P_fold, j_best, ~] = compute_range_folding_values(to_plot, jmin, jmax);
+        % ===== Add TOP X-AXIS LABELS with folding values =====
+        % jmin = 2; jmax = 32; % choose per your Doppler length / rotor cadence range
+        % [P_fold, j_best, ~] = compute_range_folding_values(to_plot, jmin, jmax);
         % label_folding_topaxis(droneWin.axRange, range_axis, P_fold, '%.1f');
+
+        % Apply folding
+        [P_fold, j_best, ~] = calc_folding_concentration(to_plot, foldingWin.jmin, foldingWin.jmax);
 
         % (Optional) Show a quick comparison in the info label:
         P_gate_mean = mean(P_fold(gate_idx));
@@ -562,15 +565,19 @@ function interactive_txbf_viewer_gated()
         %                           'NumberTitle','off', 'Position',[220 220 900 260]);
 
         % Create a dedicated figure that will host folding, FrFT spectrum and controls
-        foldingWin.hFig3 = figure('Name','Folding & Smearing', ...
-            'NumberTitle','off', 'Position',[220 220 950 620], ...
-            'CloseRequestFcn',@closeFoldingWindow);
+        foldingWin.hFig3 = figure('Name','Gate Concentration (PMM visibility)', ...
+                'NumberTitle','off', 'Position',[220 220 950 620], ...
+                'CloseRequestFcn',@closeFoldingWindow);
 
         % One axis that fills most of the figure
-        % foldingWin.ax = axes('Parent', foldingWin.hFig3, 'Position',[0.08 0.22 0.88 0.72]);
+        foldingWin.ax = axes('Parent', foldingWin.hFig3, 'Position',[0.08 0.22 0.88 0.72]);
         tFold = tiledlayout(foldingWin.hFig3,2,1,'Padding','compact','TileSpacing','compact');
         foldingWin.axFold = nexttile(tFold,1);   % P_i vs range
         foldingWin.axMu   = nexttile(tFold,2);   % μ_D(j*) for one range bin
+
+        % Single axes filling most of the figure
+        % foldingWin.axFold = axes('Parent', foldingWin.hFig3, ...
+            % 'Position',[0.08 0.22 0.88 0.72]);
 
         % Optional controls to tweak jmin/jmax
         uicontrol(foldingWin.hFig3,'Style','text','Units','normalized', ...
@@ -664,52 +671,111 @@ function interactive_txbf_viewer_gated()
         % [P_fold, ~] = compute_range_folding_values(to_plot, foldingWin.jmin, foldingWin.jmax);
 
         % Folding + smearing + μ_D(j*)
-        [P_fold, j_best, ~, S_smear, S_norm, mu_best_all] = calc_smearing_degree(to_plot, foldingWin.jmin, foldingWin.jmax);
+        [P_fold, j_best, ~, cnctr_ratio, ~, ~] = ...
+            calc_folding_concentration(to_plot, foldingWin.jmin, foldingWin.jmax);
 
-        % ---- Draw folding values per range bin: P_i vs range ----
+        % ---- Draw folding + concentration per range ----
         axes(foldingWin.axFold); cla(foldingWin.axFold);
         plot(range_axis, P_fold, 'LineWidth',1.3); grid on;
         xlabel('Range (m)');
         ylabel('Folding value P_i');
         title(sprintf('Folding per range (j = %d..%d)', foldingWin.jmin, foldingWin.jmax));
 
-        % Overlay the current gate as two dashed verticals
+        % Overlay the current gate as dashed verticals (on full-range plot)
         yl = ylim; half_w = gate_width/2; hold on;
         plot([gate_center-half_w gate_center-half_w], yl, '--');
         plot([gate_center+half_w gate_center+half_w], yl, '--');
+        plot([gate_center+half_w gate_center+half_w], yl, '--');
         hold off;
 
-        % Choose a "representative" range bin: strongest P inside the gate
-        if isempty(gate_idx)
-            rbin = 1;
-        else
-            [~, rel_idx] = max(P_fold(gate_idx));
-            rbin = gate_idx(rel_idx);
-        end
+        % ===================== BOTTOM: C_i for GATED range only =====================
+        axes(foldingWin.axMu); cla(foldingWin.axMu);
 
-        mu = mu_best_all{rbin};       % this is μ_D(j_best) for that bin
-        if isempty(mu)
-            axes(foldingWin.axMu); cla(foldingWin.axMu);
-            title('No valid folding for selected bin');
+        if isempty(gate_idx)
+            title('No gated range bins');
+            xlabel('Range (m)');
+            ylabel('Concentration C_i');
+            grid on;
             return;
         end
 
-        j_star = j_best(rbin);
-        S_i    = S_smear(rbin);
-        S_i_n  = S_norm(rbin);
-        mu_bar = mean(mu);
+        % Restrict concentration to gate only
+        rgate  = range_axis(gate_idx);         % range values inside gate
+        C_gate = cnctr_ratio(gate_idx);        % C_i only for gated bins
+        P_gate = P_fold(gate_idx);             % folding values inside gate
+        j_gate = j_best(gate_idx);             % j^* for gated bins
+        
+        % Find the range bin in the gate with MAX FOLDING (P_i)
+        [~, idx_maxP] = max(P_gate);
+        r_at_max   = rgate(idx_maxP);          % range where folding is strongest
+        j_at_max   = j_gate(idx_maxP);         % j^* at that bin
+        C_at_Pmax  = C_gate(idx_maxP);         % concentration at that bin
 
-        % ---- Bottom: μ_D(j*) (columnwise array) ----
-        axes(foldingWin.axMu); cla(foldingWin.axMu);
-        i = 0:(numel(mu)-1);    % 0-based index (matches your paper indexing)
-        plot(i, mu, '-o','LineWidth',1.3); hold on;
-        yline(mu_bar,'--','Mean \mu','LabelHorizontalAlignment','left');
-        grid on;
-        xlabel('Column index k');
-        ylabel('\mu_k(j^*)');
-        title(sprintf('\\mu_D(j^*) at range %.1f m | S = %d, S_{norm} = %.2f | j star value = %.2f', ...
-            range_axis(rbin), S_i, S_i_n, j_star));
-        hold off;
+        % Plot C_i vs range for gated bins only
+        plot(rgate, C_gate, '-o', 'LineWidth',1.5); hold on;
+        % Mark the max-C bin
+        plot(r_at_max, C_at_Pmax, 'rx', 'MarkerSize',10, 'LineWidth',1.8);
+        hold off; grid on;
+
+        xlabel('Range (m)');
+        ylabel('Concentration ratio C_i (gate only)');
+        title(sprintf(['Gate concentration C_i (j = %d..%d) | ', ...
+                    'C at max folding = %.2f at %.1f m (j^* = %d)'], ...
+                    foldingWin.jmin, foldingWin.jmax, ...
+                    C_at_Pmax, r_at_max, j_at_max));
+        
+        % yyaxis left
+        % plot(range_axis, P_fold, 'LineWidth',1.3);
+        % ylabel('Folding value P_i');
+        % 
+        % yyaxis right
+        % plot(range_axis, cnctr_ratio, '--', 'LineWidth',1.3);
+        % ylabel('Concentration ratio C_i');
+        % 
+        % grid on;
+        % xlabel('Range (m)');
+        % title(sprintf('Folding & Concentration per range (j = %d..%d)', ...
+        %     foldingWin.jmin, foldingWin.jmax));
+        % 
+        % % Overlay current gate as vertical lines (on left axis)
+        % yyaxis left
+        % yl = ylim; half_w = gate_width/2; hold on;
+        % plot([gate_center-half_w gate_center-half_w], yl, '--');
+        % plot([gate_center+half_w gate_center+half_w], yl, '--');
+        % hold off;
+        % 
+        % % Choose a "representative" range bin: strongest P inside the gate
+        % if isempty(gate_idx)
+        %     rbin = 1;
+        % else
+        %     [~, rel_idx] = max(P_fold(gate_idx));
+        %     rbin = gate_idx(rel_idx);
+        % end
+        % 
+        % mu = mu_best_all{rbin};       % this is μ_D(j_best) for that bin
+        % if isempty(mu)
+        %     axes(foldingWin.axMu); cla(foldingWin.axMu);
+        %     title('No valid folding for selected bin');
+        %     return;
+        % end
+        % 
+        % j_star = j_best(rbin);
+        % C_i = cnctr_ratio(rbin);
+        % L_i = leak_ratio(rbin);
+        % mu_bar = mean(mu);
+        % 
+        % % ---- Bottom: μ_D(j*) (columnwise array) ----
+        % axes(foldingWin.axMu); cla(foldingWin.axMu);
+        % k = 0:(numel(mu)-1);    % 0-based index
+        % plot(k, mu, '-o','LineWidth',1.3); hold on;
+        % yline(mu_bar,'--','Mean \mu','LabelHorizontalAlignment','left');
+        % grid on;
+        % xlabel('Column index k');
+        % ylabel('\mu_k(j^*)');
+        % title(sprintf('\\mu_D(j^*) at range %.1f m | C = %.2f, L = %.2f | j^* = %d', ...
+        %     range_axis(rbin), C_i, L_i, j_star));
+        % hold off;
+
     end
 
     function X = angslice(M, idx)
