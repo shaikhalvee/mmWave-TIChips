@@ -11,15 +11,15 @@ function interactive_txbf_viewer_filtered()
 %   RD_map.dopplerFFT : [Nrange x Ndoppler x Nangle] or [Nrange x Ndoppler]
 
     % ===================== USER SETTINGS =====================
-    frames_per_batch = 300;
+    frames_per_batch = 500;
 
-    data_folder  = './output/out_txbf_13_100_150_255_2/';
+    data_folder = './output/out_txbf_2_12_150_100_255/';
     % IMPORTANT: this is your updated folder with only the selected frames
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11_filtered2/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
     params_folder = data_folder;
 
     % Max range to display (meters)
-    maxRange = 60;
+    maxRange = 100;
 
     % ===================== LIST FRAME FILES =====================
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
@@ -99,7 +99,7 @@ function interactive_txbf_viewer_filtered()
     droneWin.auto_gate = true;
     droneWin.gate_center_m = 80;   % initial guess (m)
     droneWin.gate_width_m  = 5;    % meters
-    droneWin.v_exclude     = 0.05; % m/s region around 0 to ignore for auto-detect
+    droneWin.v_exclude = 0.5; % m/s region around 0 to ignore for auto-detect
 
     % ---- Folding window state ----
     foldingWin.hFig3  = [];
@@ -344,6 +344,14 @@ function interactive_txbf_viewer_filtered()
         droneWin.txtInfo  = uicontrol(droneWin.hFig2,'Style','text','String','', ...
             'Units','normalized','Position',[0.70 0.012 0.28 0.05],'HorizontalAlignment','left');
 
+        droneWin.cbPeakProfile = uicontrol(droneWin.hFig2, ...
+            'Style','checkbox', ...
+            'String','Peak-Doppler profile', ...
+            'Units','normalized', ...
+            'Position',[0.02 0.06 0.20 0.04], ...
+            'Value',0, ...
+            'Callback',@(s,~) updateDroneWindow());
+
         droneWin.exists = true;
         updateDroneWindow();
         openFoldingWindow(); % keep folding window in sync
@@ -390,8 +398,19 @@ function interactive_txbf_viewer_filtered()
         to_plot = angslice(RD_map_abs, angleIdx);       % [R x D] power
 
         % Align & trim with global axes
-        [range_axis, doppler_axis, to_plot, ~] = ...
-            align_and_trim_axes(range_axis_full, doppler_axis_full, to_plot, maxRange);
+        [range_axis, doppler_axis, to_plot, ~] = align_and_trim_axes( ...
+            range_axis_full, doppler_axis_full, to_plot, maxRange);
+
+        % Decide which type of range profile to show
+        usePeakProfile = isfield(droneWin,'cbPeakProfile') && ...
+                         isvalid(droneWin.cbPeakProfile) && ...
+                         get(droneWin.cbPeakProfile,'Value');
+
+        % Moving-Doppler mask (same idea as auto gate)
+        nz = abs(doppler_axis) > droneWin.v_exclude;
+        if ~any(nz)
+            nz = true(size(doppler_axis));   % fallback: use all bins
+        end
 
         % Compute gate
         [gate_idx, gate_center, gate_width] = compute_gate_for_drone( ...
@@ -428,16 +447,43 @@ function interactive_txbf_viewer_filtered()
 
         % ----- Range profile with gate overlay -----
         axes(droneWin.axRange); cla(droneWin.axRange);
-        rp = mean(to_plot,2);
-        if isLog2
-            plot(range_axis, 20*log10(max(rp,2)+eps),'LineWidth',1.0); hold on;
-            plot(range_axis(gate_idx),20*log10(max(rp(gate_idx),2)+eps),'LineWidth',2.0);
-            title('Range Profile (dB)'); ylabel('Power (dB)');
+        
+        if usePeakProfile
+            % --- Peak-Doppler range profile ---
+
+            % 1) Recompute moving-only average per range (same as auto-gate logic)
+            rp_nz = mean(to_plot(:, nz), 2);          % [R x 1], moving-only average
+            [~, pk] = max(rp_nz);                     % center range index (drone body)
+
+            % 2) At that center range, find the peak Doppler bin (over moving bins)
+            row_c = to_plot(pk, :);                   % [1 x D], power at center range
+            [~, k_rel] = max(row_c(nz));             % peak among moving bins
+            nz_idx = find(nz);
+            k_peak = nz_idx(k_rel);                  % absolute Doppler index
+
+            % 3) Range profile = RD slice at that Doppler bin
+            rp = to_plot(:, k_peak);                  % [R x 1], power vs range at v_peak
+            profTitle = sprintf('Range Profile at peak Doppler (v=%.3f m/s)', ...
+                        doppler_axis(k_peak));
         else
-            plot(range_axis, rp,'LineWidth',1.0); hold on;
-            plot(range_axis(gate_idx), rp(gate_idx),'LineWidth',2.0);
-            title('Range Profile (linear)'); ylabel('Power (linear)');
+            % --- Average moving-Doppler range profile (default) ---
+            rp = mean(to_plot(:, nz), 2);             % moving-only average
+            profTitle = 'Range Profile (moving average)';
         end
+
+        % Plot with gate overlay
+        if isLog2
+            rp_plot = 20*log10(max(rp,2)+eps);
+            plot(range_axis, rp_plot, 'LineWidth',1.0); hold on;
+            plot(range_axis(gate_idx), rp_plot(gate_idx), 'LineWidth',2.0);
+            ylabel('Power (dB)');
+        else
+            plot(range_axis, rp, 'LineWidth',1.0); hold on;
+            plot(range_axis(gate_idx), rp(gate_idx), 'LineWidth',2.0);
+            ylabel('Power (linear)');
+        end
+
+        title(profTitle);
         xlabel('Range (m)');
         yl = ylim;
         plot([gate_center-half_w gate_center-half_w], yl, '--');
@@ -450,7 +496,7 @@ function interactive_txbf_viewer_filtered()
         P_oth_mean  = mean(P_fold(setdiff(1:numel(range_axis), gate_idx)));
 
         [~, rel_idx_max] = max(P_fold(gate_idx));
-        rbin_peak        = gate_idx(rel_idx_max);
+        rbin_peak = gate_idx(rel_idx_max);
         fold_size_rBin   = j_best(rbin_peak);
 
         % ----- Drone-only Doppler (gated rows only) -----

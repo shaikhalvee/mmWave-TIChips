@@ -5,11 +5,11 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'G:\RADAR_DATA\out_txbf_27_10_sl_8_fr_100_2';
+adc_data_folder = 'G:\RADAR_DATA\out_txbf_2_12_150_100_255';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder];
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_11/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_12/'];
 calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------

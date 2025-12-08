@@ -69,6 +69,9 @@ function stats = analyze_corr_concentration_accel( ...
     j_star = nan(F,1);   % j* at UAV bin
     r_star = nan(F,1);   % range at UAV bin
 
+    % v_res = droneOpts.v_res;
+    v_max = droneOpts.v_max;
+
     for f = 1:F
         tmp = load(fullfile(frame_files(f).folder, frame_files(f).name));
 
@@ -155,9 +158,11 @@ function stats = analyze_corr_concentration_accel( ...
     end
 
     % --------- Build differences and acceleration proxy ----------
-    dv   = diff(v_star);        % signed velocity change
+    v_range = 2 * v_max;        % taking 2*v_max to handle aliasing
+    dv_raw = diff(v_star);      % signed velocity change
+    dv = mod(dv_raw + v_range/2, v_range) - v_range/2;        % true velocity change
     aMag = abs(dv);             % magnitude of change (acceleration-like)
-    dC   = diff(C_star);        % change in concentration
+    dC = diff(C_star);        % change in concentration
 
     % Align C* with dv (dv(f) = v(f+1)-v(f) => use C*(2:end))
     C2 = C_star(2:end);

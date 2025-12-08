@@ -45,7 +45,7 @@ function [RD_map, range_axis, ...
     tempRangeFFT = reshape(tmpR, [numRangeBin, num_chirps, numSweep]);  % [R, chirp, Ang]
 
     % Doppler window coefficient [wrong placement]
-    % range_fft = range_fft .* reshape(doppler_win,1,[],1,1);
+    range_fft = range_fft .* reshape(doppler_win,1,[],1,1);
 
     % Doppler clutter removal
     if dopplerClutterRemoval
@@ -59,8 +59,8 @@ function [RD_map, range_axis, ...
     end
 
     % Doppler window coefficient
-    range_fft_win = range_fft_dc .* reshape(doppler_win,1,[],1,1);
-    % range_fft_win = range_fft_dc;
+    % range_fft_win = range_fft_dc .* reshape(doppler_win,1,[],1,1);
+    range_fft_win = range_fft_dc;
 
     % Doppler FFT (dim 2)
     doppler_fft = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
