@@ -1,5 +1,76 @@
 function [RD_mag_dB, range_axis, vel_axis, doppler_freq_axis, aux] = simulate_uav_rd_mmwcas(radar, uav, noise)
-%% ------------- 3. BUILD SLOW-TIME GEOMETRY ----------------------------
+%SIMULATE_UAV_RD_MMWCAS  Simulate UAV range–Doppler map for an FMCW mmWave cascade radar.
+%
+%   [RD_mag_dB, range_axis, vel_axis, doppler_freq_axis, aux] = ...
+%       SIMULATE_UAV_RD_MMWCAS(radar, uav, noise)
+%
+% INPUTS
+%   radar : struct with radar and processing parameters
+%       .N_chirps      : number of chirps per CPI (slow-time length)
+%       .N_samp        : ADC samples per chirp (fast-time length)
+%       .T_chirp       : chirp duration (s)
+%       .lambda        : radar wavelength (m)
+%       .S_slope       : FMCW sweep slope S (Hz/s)
+%       .Fs            : ADC sampling rate (Hz)
+%       .BW            : FMCW sweep bandwidth (Hz)
+%       .Nfft_range    : FFT size in range dimension
+%       .Nfft_doppler  : FFT size in Doppler dimension
+%       .Fslow         : slow-time sampling rate (chirps per second)
+%
+%   uav : struct describing UAV kinematics & micro-motion model
+%       % Bulk motion (body)
+%       .R0              : initial slant range at t = 0 (m)
+%       .v0              : initial radial velocity (m/s)
+%       .a               : radial acceleration (m/s^2)
+%       .N_body_scatter  : number of point scatterers on the UAV body
+%       .body_rcs        : total RCS assigned to body scatterers (linear)
+%
+%       % Rotor / blade geometry and motion
+%       .N_rotors          : number of rotors
+%       .N_blades_per_rot  : blades per rotor
+%       .N_scat_per_blade  : point scatterers along each blade
+%       .blade_length      : physical blade length (m)
+%       .blade_rcs         : total RCS assigned to all blade scatterers (linear)
+%       .uav_rot_Hz        : nominal rotor rotation frequency (Hz)
+%       .rotor_freq_jitter : relative jitter factor for per-rotor speed (unitless)
+%                           % Each rotor’s f_rot is drawn as:
+%                           %   f_rot_p = uav_rot_Hz * (1 + rotor_freq_jitter * U[-1,1])
+%       .beta              : angle between blade rotation plane normal and radar LOS (rad)
+%
+%   noise : struct for additive noise model
+%       .SNR_dB         : target SNR in dB at the IF signal (before RD FFTs)
+%
+%
+% OUTPUTS
+%   RD_mag_dB        : range–Doppler magnitude (dB),
+%                      size [Nfft_range x Nfft_doppler]
+%   range_axis       : range axis (m), length Nfft_range
+%   vel_axis         : radial velocity axis (m/s), length Nfft_doppler
+%   doppler_freq_axis: Doppler frequency axis (Hz), length Nfft_doppler
+%
+%   aux : struct with intermediate simulation products (for debugging / analysis)
+%       .R_body        : body range vs slow-time (1 x N_chirps)
+%       .A_eff         : effective complex amplitude vs chirp (1 x N_chirps)
+%       .R_total       : total range per scatterer vs slow-time
+%                        (N_total_scatterer x N_chirps)
+%       .phase_scat    : 4πR/λ phase for each scatterer vs slow-time
+%       .noise_variance: complex noise variance used (per complex dimension)
+%       .S             : noise-free IF signal matrix [N_chirps x N_samp]
+%       .S_noise       : noisy IF signal matrix [N_chirps x N_samp]
+%       .S_range       : range-FFT output [Nfft_range x N_chirps]
+%       .RD_cube       : full complex RD cube [Nfft_range x Nfft_doppler]
+%
+%   The function assumes:
+%       - Body motion is well approximated as constant-acceleration in slow-time.
+%       - Micro-motion for each blade scatterer follows
+%            R_MD(t) = - r * cos(beta) * cos(omega * t + phi0)
+%         with per-rotor random jitter in omega to emulate spectral smearing.
+%       - All scatterers share the same nominal beat frequency for range
+%         (small relative range spread w.r.t. chirp slope).
+%
+
+
+%% ------------- 1. BUILD SLOW-TIME GEOMETRY ----------------------------
 numChirps = radar.N_chirps;
 numSamples = radar.N_samp;
 c = physconst('LightSpeed');
@@ -12,7 +83,7 @@ t_center = t_slow + 0.5 * radar.T_chirp;
 % Body range vs slow-time with constant acceleration
 R_body = uav.R0 + uav.v0 .* t_center + 0.5 * uav.a .* t_center.^2; % 1 x numChirps
 
-%% ------------- 4. BUILD SCATTERER SET --------------------------------
+%% ------------- 2. BUILD SCATTERER SET --------------------------------
 % We represent the UAV as:
 %   - N_body_scatter point scatterers at R_body(k)
 %   - Rotating blades: rotors × blades × point scatterers along each blade
@@ -93,7 +164,7 @@ A_blade_each = uav.blade_rcs / N_rotor_scatterer;
 A_list = [A_body_each * ones(N_body,1) ; (A_blade_each) * ones(N_rotor_scatterer,1)];
 
 
-%% ------------- 5. MICRO-DOPPLER DISPLACEMENTS ------------------------
+%% ------------- 3. MICRO-DOPPLER DISPLACEMENTS ------------------------
 % For body scatterers: no micro-motion, so MD displacement = 0
 R_md = zeros(N_total_scatterer, numChirps);   % (scatterer x num chirps/doppFFT)
 
@@ -110,7 +181,7 @@ for s = 1:N_rotor_scatterer     % build the UAV signal for rotor
     R_md(s_idx, :) = - r_s * cos(beta) * cos(omega_s * t_slow + phi0_s);
 end
 
-%% ------------- 6. SCATTERER PHASE VS SLOW-TIME -----------------------
+%% ------------- 4. SCATTERER PHASE VS SLOW-TIME -----------------------
 lambda = radar.lambda;
 
 % Expand body range to (scatterer x slow-time) through broadcasting
@@ -126,7 +197,7 @@ phase_scat = 4*pi * R_total / lambda;   % radians
 % A_eff(k) = sum_s A_s * exp(j * phase_scat(s,k))
 A_eff = (A_list.' * exp(1j * phase_scat));   % 1 x numChirps
 
-%% ------------- 7. FAST-TIME (RANGE) BEAT FREQUENCY -------------------
+%% ------------- 5. FAST-TIME (RANGE) BEAT FREQUENCY -------------------
 % Use classic FMCW beat frequency model:
 %   f_b = 2 * S * R0 / c
 % And assume same beat frequency for all scatterers (range differences are tiny).
@@ -142,14 +213,14 @@ fast_phase = 2*pi * f_b_norm * n;            % 1 x numSamples
 S = (A_eff.' * exp(1j * fast_phase));        % numChirps x numSamples
 % S = S.';        % numSamples x numChirps
 
-%% ------------- 8. ADD NOISE ------------------------------------------
+%% ------------- 6. ADD NOISE ------------------------------------------
 signal_power = mean(abs(S(:)).^2);
 sigma2 = signal_power / (10^(noise.SNR_dB/10));
 noise_cplx = sqrt(sigma2/2) * (randn(size(S)) + 1j*randn(size(S)));
 
 S_noise = S + noise_cplx;
 
-%% ------------- 9. RANGE–DOPPLER PROCESSING ---------------------------
+%% ------------- 7. RANGE–DOPPLER PROCESSING ---------------------------
 % Apply windowing in both dimensions
 win_range   = hann(numSamples).';      % 1 x numSamples
 win_doppler = hann(numChirps);       % numChirps x 1
@@ -171,7 +242,7 @@ RD_cube = fftshift(fft(S_range, N_fft_dopp, 2), 2);  % N_fft_range x N_fft_dopp
 RD_mag_dB = 20*log10(abs(RD_cube) + 1e-12);
 % RD_mag_dB = RD_mag_dB.';
 
-%% ------------- 10. AXES ----------------------------------------------
+%% ------------- 8. AXES ----------------------------------------------
 % Range axis
 range_res = c / (2 * radar.BW);
 range_axis = (0:N_fft_range-1) * range_res;      % (m)

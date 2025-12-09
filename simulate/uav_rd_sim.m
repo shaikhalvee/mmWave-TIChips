@@ -60,17 +60,17 @@ uav.body_rcs       = 1.0;    % relative RCS weight of the body
 
 % Rotors & blades (micro-Doppler)
 uav.N_rotors         = 4;    % quadcopter
-uav.N_blades_per_rot = 2;    % blades per rotor
-uav.N_scat_per_blade = 20;   % point scatterers along each blade
-uav.blade_length     = 0.12; % blade length (m)
-uav.uav_rot_Hz       = 40;   % rotor rotation frequency (Hz) ~ 2400 rpm
+uav.N_blades_per_rot = 4;    % blades per rotor
+uav.N_scat_per_blade = 5;   % point scatterers along each blade
+uav.blade_length     = 0.1; % blade length (m)
+uav.uav_rot_Hz       = 50;   % rotor rotation frequency (Hz) ~ 2400 rpm
 
 % If we want "pure acceleration smear" with no rotor micro-Doppler,
 % set uav.blade_rcs = 0 and/or uav.N_rotors = 0.
-uav.blade_rcs = 0.5;  % total RCS weight of all blade scatterers
+uav.blade_rcs = 0.25;  % total RCS weight of all blade scatterers
 
 % (Optional) small rotor-to-rotor speed variations to create MD "smearing"
-uav.rotor_freq_jitter = 0.05;   % ±5% variation between rotors
+uav.rotor_freq_jitter = 0.0;   % ±10% variation between rotors
 
 % Noise
 noise.SNR_dB         = 20;   % approximate SNR of beat signal [dB]
@@ -84,14 +84,14 @@ numSamples = radar.N_samp;
 %% ------------- 11. PLOTS ---------------------------------------------
 % Range–Doppler map
 figure;
-imagesc(vel_axis, range_axis, RD_mag_dB);
+surf(RD_mag_dB);
+colormap("parula");
+colorbar;
+axis tight vis3d;
+view(3);
+rotate3d on;
 % set(gca,'YDir','normal');
-set(gca, 'FontSize', 16);
-ylabel('Range (m)');
-xlabel('Radial velocity (m/s)');
-title('Simulated UAV Range–Doppler Map');
-axis xy;
-colormap parula; colorbar; 
+ 
 
 % % Zoom around the UAV range cell
 % [~, idx_r0] = min(abs(range_axis - uav.R0));

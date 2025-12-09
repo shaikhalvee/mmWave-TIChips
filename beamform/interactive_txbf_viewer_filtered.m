@@ -13,9 +13,9 @@ function interactive_txbf_viewer_filtered()
     % ===================== USER SETTINGS =====================
     frames_per_batch = 500;
 
-    data_folder = './output/out_txbf_2_12_150_100_255/';
+    data_folder = './output/out_txbf_sim_uav_3p5ms2/';
     % IMPORTANT: this is your updated folder with only the selected frames
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
     params_folder = data_folder;
 
     % Max range to display (meters)
