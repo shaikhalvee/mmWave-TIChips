@@ -2,6 +2,7 @@ function [RD_mag_dB, range_axis, vel_axis, doppler_freq_axis, aux] = simulate_ua
 %% ------------- 3. BUILD SLOW-TIME GEOMETRY ----------------------------
 numChirps = radar.N_chirps;
 numSamples = radar.N_samp;
+c = physconst('LightSpeed');
 
 % We approximate micro-motion and body motion as constant within each chirp,
 % and sample them at the *chirp center* times (better for Doppler).
