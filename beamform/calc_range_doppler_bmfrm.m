@@ -45,7 +45,7 @@ function [RD_map, range_axis, ...
     tempRangeFFT = reshape(tmpR, [numRangeBin, num_chirps, numSweep]);  % [R, chirp, Ang]
 
     % Doppler window coefficient [wrong placement]
-    range_fft = range_fft .* reshape(doppler_win,1,[],1,1);
+    % range_fft = range_fft .* reshape(doppler_win,1,[],1,1);
 
     % Doppler clutter removal
     if dopplerClutterRemoval
@@ -59,8 +59,8 @@ function [RD_map, range_axis, ...
     end
 
     % Doppler window coefficient
-    % range_fft_win = range_fft_dc .* reshape(doppler_win,1,[],1,1);
-    range_fft_win = range_fft_dc;
+    range_fft_win = range_fft_dc .* reshape(doppler_win,1,[],1,1);
+    % range_fft_win = range_fft_dc;
 
     % Doppler FFT (dim 2)
     doppler_fft = fftshift(fft(range_fft_win, numDopplerBin, 2), 2);
@@ -90,12 +90,12 @@ function [RD_map, range_axis, ...
     paramsConfig.bandwidth = slope * paramsConfig.rangeFFTSize / fs;
     range_axis = (0:paramsConfig.rangeFFTSize-1) * c * fs / (2 * slope * paramsConfig.rangeFFTSize);
     % PRF = 1e6 / (paramsConfig.Idle_Time_us + paramsConfig.Ramp_End_Time_us);
-    PRT = (paramsConfig.Idle_Time_us + paramsConfig.Ramp_End_Time_us) * 1e-6;
+    T_chirp = (paramsConfig.Idle_Time_us + paramsConfig.Ramp_End_Time_us) * 1e-6;
     lambda = c / (paramsConfig.Start_Freq_GHz * 1e9);
-    v_max = lambda / (4 * PRT);
+    v_max = lambda / (4 * T_chirp);
     % v_max = c * paramsConfig.Slope_MHzperus * 1e6 / (2 * paramsConfig.Start_Freq_GHz * 1e9);
     doppler_axis = linspace(-v_max, v_max, numDopplerBin);
-    paramsConfig.PRT = PRT;
+    paramsConfig.PRT = T_chirp;
     paramsConfig.lambda = lambda;
     paramsConfig.v_max = v_max;
     paramsConfig.c = c;
