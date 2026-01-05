@@ -79,7 +79,8 @@ noise.SNR_dB         = 20;   % approximate SNR of beat signal [dB]
 numChirps = radar.N_chirps;
 numSamples = radar.N_samp;
 
-[RD_mag_dB, range_axis, vel_axis, doppler_freq_axis, aux] = simulate_uav_rd_mmwcas(radar, uav, noise);
+[RD_mag_dB, range_axis, ...
+    vel_axis, doppler_freq_axis, aux] = simulate_uav_rd_mmwcas(radar, uav, noise);
 
 %% ------------- 11. PLOTS ---------------------------------------------
 % Range–Doppler map

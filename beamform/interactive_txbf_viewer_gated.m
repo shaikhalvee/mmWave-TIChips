@@ -4,12 +4,12 @@ function interactive_txbf_viewer_gated()
 % Adds an optional second window that shows DRONE-ONLY Doppler using a range gate.
 
     frames_per_batch = 300;
-    data_folder  = './output/out_txbf_13_100_150_255_2/';
+    data_folder  = './output/out_txbf_2_12_150_100_255/';
     frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
     config_folder = data_folder;
 
     % maximum range
-    maxRange = 40; % in meters
+    maxRange = 100; % in meters
 
     % Get all frame file names
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));

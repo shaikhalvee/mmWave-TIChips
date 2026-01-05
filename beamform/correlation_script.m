@@ -1,11 +1,13 @@
 % Setup (same as your viewer)
-data_folder  = './output/out_txbf_2_12_150_100_255/';
-frame_folder = [data_folder 'rangeDopplerFFTmap_11_filtered/'];
+data_folder  = './output/out_txbf_sim_uav_3p5ms2/';
+frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
 
 frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
-config_data = load(fullfile(data_folder, 'config.mat'));
-all_range_axis   = config_data.all_range_axis;
-all_doppler_axis = config_data.all_doppler_axis;
+% config_data = load(fullfile(data_folder, 'config.mat'));
+% all_range_axis   = config_data.all_range_axis;
+% all_doppler_axis = config_data.all_doppler_axis;
+
+
 
 % ===================== LOAD PARAMS & BUILD AXES =====================
 params_folder = data_folder;
@@ -13,6 +15,13 @@ params_file = dir(fullfile(data_folder, '*_params.mat'));
 assert(~isempty(params_file), 'Cannot find *_params.mat in %s', params_folder);
 tmp = load(fullfile(params_folder, params_file(1).name), 'params');
 params = tmp.params;
+
+% ===================== Range & Doppler axis calculation =============
+numOfFrames = numel(frame_files);
+range_axis = (0:params.rangeFFTSize-1) * c * fs / (2 * params.slope * params.rangeFFTSize);
+all_range_axis = repmat(range_axis(:), 1, numOfFrames);
+doppler_axis = linspace(-params.v_max, params.v_max, params.dopplerFFTSize);
+all_doppler_axis = repmat(doppler_axis(:), 1, numOfFrames);
 
 maxRange = 100;   % same as viewer
 

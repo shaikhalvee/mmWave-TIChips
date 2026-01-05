@@ -16,14 +16,18 @@ function sim_uav_generate_frames()
     %% ---------------- USER CONFIG ----------------
     % Global frame timing / trajectory
     T_frame  = 127.5e-3;   % s, frame periodicity
-    a_mag    = 3.5;        % m/s^2, magnitude of radial accel
-    t_accel  = 5.0;        % s, accelerate for 5 s, then decel 5 s
-    T_total  = 12.0;       % s, total simulation duration (>= 2*t_accel)
+    a_mag    = 2;        % m/s^2, magnitude of radial accel
     R0_init  = 10.0;       % m, initial range
-    v0_init  = 0.0;        % m/s, initial radial velocity
+    v0_init  = 2.0;        % m/s, initial radial velocity
 
-    % Output folder / naming (mimic your txbf pipeline)
-    root_name         = 'out_txbf_sim_uav_3p5ms2';
+    t_cv1   = 3;      % s  (phase 1)
+    t_accel  = 2.0;   % s  (phase 2)
+    t_cv2   = 4;      % s  (phase 3)
+    t_decel = 3;      % s  (phase 4)
+    T_total  = 15;    % s total simulation duration
+
+    % Output folder / naming (mimic the txbf pipeline)
+    root_name         = 'sim_uav_5p_a15_rn_noise20';
     data_folder       = fullfile('output', root_name);
     frame_folder_name = 'rangeDopplerFFTmap_sim';
     frame_folder      = fullfile(data_folder, frame_folder_name);
@@ -37,7 +41,7 @@ function sim_uav_generate_frames()
     end
 
     %% ---------------- RADAR PARAMETERS ----------------
-    % These are copied from your uav_rd_sim.txt as defaults
+    % These are copied from the uav_rd_sim.txt as defaults
     c = physconst('LightSpeed');
 
     radar.fc = 77e9;                          % Hz
@@ -46,8 +50,8 @@ function sim_uav_generate_frames()
     radar.N_samp = 512;                       % ADC samples per chirp
     radar.Fs     = 16e6;                      % ADC sampling rate [Hz]
 
-    radar.S_slope_in_mhzus = 15.0148;         % MHz/us, from your board
-    radar.T_chirp          = 250e-6;          % s, chirp duration
+    radar.S_slope_in_mhzus = 8;         % MHz/us, from the mmWave studio board
+    radar.T_chirp          = 150e-6;          % s, chirp duration
     radar.N_chirps         = 256;             % chirps per CPI
 
     % Derived params
@@ -55,48 +59,49 @@ function sim_uav_generate_frames()
     radar.T_ch_eff = radar.N_samp / radar.Fs; % effective sweep time
     radar.S_slope  = radar.S_slope_in_mhzus * 1e12; % Hz/s
     radar.BW       = radar.S_slope * radar.T_ch_eff;
-
+  
     radar.Nfft_range   = radar.N_samp;
-    radar.Nfft_doppler = radar.N_chirps;
+    radar.Nfft_doppler = radar.N_chirps;  
 
     radar.R_res = c / (2 * radar.BW);
     radar.R_max = c * radar.Fs / (2 * radar.S_slope);
 
-    T_cpi       = radar.N_chirps * radar.T_chirp;
+    T_cpi = radar.N_chirps * radar.T_chirp;
     radar.v_res = radar.lambda / (2 * T_cpi);
     radar.v_max = radar.lambda / (4 * radar.T_chirp);
 
     fprintf('Radar: Fc = %.2f GHz, BW = %.1f MHz\n', radar.fc/1e9, radar.BW/1e6);
     fprintf('  Range res = %.3f m, R_max = %.1f m\n', radar.R_res, radar.R_max);
-    fprintf('  Doppler res = %.3f m/s, v_max = ±%.2f m/s\n', ...
-            radar.v_res, radar.v_max);
+    fprintf('  Doppler res = %.3f m/s, v_max = ±%.2f m/s\n', radar.v_res, radar.v_max);
+ 
 
     %% ---------------- UAV MICRO-DOPPLER MODEL ----------------
-    % These match your uav_rd_sim defaults (except R0, v0, a which we
+    % These match the uav_rd_sim defaults (except R0, v0, a which we
     % update per-frame).
     uav = struct();
 
     % Angle between blade plane and LOS
     uav.beta_deg = 0;
-    uav.beta     = deg2rad(uav.beta_deg);
+    uav.beta = deg2rad(uav.beta_deg);
 
-    % Body scattering
-    uav.N_body_scatter = 50;
-    uav.body_rcs       = 0.5;
+    % Body info
+    uav.N_body_scatter = 40;
+    uav.body_rcs = 1;
 
-    % Rotors / blades
+    % Rotors / blades info
     uav.N_rotors         = 4;     % quadcopter
-    uav.N_blades_per_rot = 4;
-    uav.N_scat_per_blade = 10;
+    uav.N_blades_per_rot = 2;
+    uav.N_scat_per_blade = 20;
     uav.blade_length     = 0.12;  % m
-    uav.uav_rot_Hz       = 40;    % rotor rev frequency ~ 2400 rpm
-    uav.blade_rcs        = 0.25;   % blades total RCS weight
+    uav.uav_rot_Hz       = 50;    % rotor rev frequency ~ 2400 rpm
+    uav.blade_rcs        = 1.5;   % blades total RCS weight
 
     % Small rotor-to-rotor variation to smear the micro-Doppler lines
-    uav.rotor_freq_jitter = 0.05; % ±0% no need for this. unnecessary
+    uav.rotor_freq_jitter = 0.00; % ±0% no need for this. unnecessary
 
     % Noise model
     noise.SNR_dB = 20;            % dB SNR of beat signal
+    noise.R_ref = 5;   % meters (chosen "baseline range")
 
     %% ---------------- FRAME LOOP SETUP ----------------
     % Number of frames to simulate
@@ -111,7 +116,8 @@ function sim_uav_generate_frames()
         t_frame = (k-1) * T_frame;
 
         % Global 1D motion: accelerate, then decelerate, then hover
-        [R0_k, v0_k, a_k] = uav_motion_profile(t_frame, R0_init, v0_init, a_mag, t_accel);
+        [R0_k, v0_k, a_k] = uav_motion_profile_5phase( ...
+            t_frame, R0_init, v0_init, a_mag, t_cv1, t_accel, t_cv2, t_decel);
 
         % Plug into UAV struct for this CPI
         uav_k      = uav;
@@ -120,8 +126,8 @@ function sim_uav_generate_frames()
         uav_k.a    = a_k;
 
         % ---- This call includes:
-        %   - Translational Doppler + ACCELERATION -> Doppler smear
-        %   - Blade micromotion -> micro-Doppler lines around body
+        % - Translational Doppler + ACCELERATION -> Doppler smear
+        % - Blade micromotion -> micro-Doppler lines around body
         [~, ~, ~, ~, aux] = simulate_uav_rd_mmwcas(radar, uav_k, noise);
 
         % aux.RD_cube is complex RD map: [Nfft_range x Nfft_doppler]
@@ -130,7 +136,7 @@ function sim_uav_generate_frames()
         % Wrap into RD_map struct the viewer expects
         RD_map = struct();
         RD_map.dopplerFFT = RD_cube;   % [R x D], viewer will reshape to [R x D x 1]
-        RD_map.rangeFFT = aux.S_range;
+        % RD_map.rangeFFT = aux.S_range;
 
         fname = fullfile(frame_folder, sprintf('frame_%05d.mat', frame_ids(k)));
         save(fname, 'RD_map', '-v7.3');
@@ -163,6 +169,7 @@ function sim_uav_generate_frames()
     params.framePeriod_s = T_frame;
     params.total_frames  = N_frames;
     params.frame_folder  = frame_folder_name;
+    params.noise_profile = noise;
 
     params_file = fullfile(data_folder, [root_name '_params.mat']);
     save(params_file, 'params');

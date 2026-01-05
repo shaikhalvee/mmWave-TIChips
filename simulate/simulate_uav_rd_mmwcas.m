@@ -127,7 +127,8 @@ idx = 1;    % global index for scatterer
 for p = 1:N_rotor
     %% phase calculation
     % Per-rotor angular frequency with jitter
-    f_rot_p = uav.uav_rot_Hz * (1 + uav.rotor_freq_jitter * (2*rand-1)); % p'th rotor frequency
+    % f_rot_p = uav.uav_rot_Hz * (1 + uav.rotor_freq_jitter * (2*rand-1)); % p'th rotor frequency
+    f_rot_p = uav.uav_rot_Hz;
     omega_p = 2*pi*f_rot_p;     % rotor omega for the freq above
     rotor_phase_offset = 2*pi*rand; % random overall phase per rotor (pth rotor)
 
@@ -197,10 +198,22 @@ phase_scat = 4*pi * R_total / lambda;   % radians
 % A_eff(k) = sum_s A_s * exp(j * phase_scat(s,k))
 A_eff = (A_list.' * exp(1j * phase_scat));   % 1 x numChirps
 
+% --- [ADD] Range-dependent amplitude decay (monostatic: amplitude ~ 1/R^2) ---
+A_eff_ref = A_eff;  % keeping a copy BEFORE path loss (used for noise reference later)
+
+if isfield(noise,'R_ref')
+    R_ref = noise.R_ref;      % e.g., 10 meters
+else
+    R_ref = uav.R0;           % default: treat current uav.R0 as reference
+end
+
+pathloss_amp = (R_ref ./ R_body).^2;   % R_body is already computed vs chirps :contentReference[oaicite:1]{index=1}
+A_eff = A_eff .* pathloss_amp;
+
 %% ------------- 5. FAST-TIME (RANGE) BEAT FREQUENCY -------------------
 % Use classic FMCW beat frequency model:
 %   f_b = 2 * S * R0 / c
-% And assume same beat frequency for all scatterers (range differences are tiny).
+% And assume same beat frequency for all scatterers (range differences are negligible).
 
 f_b_Hz   = 2 * radar.S_slope * uav.R0 / c;   % beat frequency for R0
 f_b_norm = f_b_Hz / radar.Fs;                % cycles/sample
@@ -214,8 +227,11 @@ S = (A_eff.' * exp(1j * fast_phase));        % numChirps x numSamples
 % S = S.';        % numSamples x numChirps
 
 %% ------------- 6. ADD NOISE ------------------------------------------
-signal_power = mean(abs(S(:)).^2);
-sigma2 = signal_power / (10^(noise.SNR_dB/10));
+S_ref = (A_eff_ref.' * exp(1j * fast_phase));   % pre-pathloss signal
+% signal_power = mean(abs(S(:)).^2);
+signal_power_ref = mean(abs(S_ref(:)).^2);
+% sigma2 = signal_power / (10^(noise.SNR_dB/10));
+sigma2 = signal_power_ref / (10^(noise.SNR_dB/10));   % SNR defined at R_ref
 noise_cplx = sqrt(sigma2/2) * (randn(size(S)) + 1j*randn(size(S)));
 
 S_noise = S + noise_cplx;

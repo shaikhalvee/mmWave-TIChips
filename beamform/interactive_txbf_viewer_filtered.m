@@ -13,18 +13,17 @@ function interactive_txbf_viewer_filtered()
     % ===================== USER SETTINGS =====================
     frames_per_batch = 500;
 
-    data_folder = './output/out_txbf_sim_uav_3p5ms2/';
+    data_folder = './output/out_txbf_19_12_50_50/';
     % IMPORTANT: this is your updated folder with only the selected frames
-    frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
     params_folder = data_folder;
 
     % Max range to display (meters)
-    maxRange = 100;
+    maxRange = 500;  
 
     % ===================== LIST FRAME FILES =====================
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
-    assert(~isempty(frame_files), ...
-        'No frame_*.mat files found in %s', frame_folder);
+    assert(~isempty(frame_files), 'No frame_*.mat files found in %s', frame_folder);
 
     total_frames = numel(frame_files);
 
@@ -50,7 +49,7 @@ function interactive_txbf_viewer_filtered()
     end
 
     % Build single global range & Doppler axes
-    c = 3e8;
+    c = physconst('LightSpeed');
 
     if isfield(params, 'fs')
         fs = params.fs;
@@ -104,8 +103,8 @@ function interactive_txbf_viewer_filtered()
     % ---- Folding window state ----
     foldingWin.hFig3  = [];
     foldingWin.exists = false;
-    foldingWin.jmin   = 2;   % folding search range
-    foldingWin.jmax   = 32;
+    foldingWin.jmin = 2;   % folding search range
+    foldingWin.jmax = 32;
 
     % ===================== MAIN WINDOW UI =====================
     hFig = figure('Name', 'TX Beamforming Interactive Viewer (Gated)', ...
@@ -202,10 +201,15 @@ function interactive_txbf_viewer_filtered()
         % -------- RD Map --------
         axes(hAx1); cla(hAx1);
         if isLog1
-            RD_dB = 20*log10(to_plot + eps);
-            maxVal = max(RD_dB(:));
-            dynRange = 90;
-            imagesc(doppler_axis, range_axis, RD_dB, [maxVal-dynRange, maxVal]);
+            RD_dB = 10*log10(to_plot + eps);
+            % maxVal = max(RD_dB(:));
+            % persistent clim;
+            % if isempty(clim)
+            %     dynRange = 90;
+            %     maxVal = max(RD_dB(:));
+            %     clim = [maxVal-dynRange, maxVal];
+            % end
+            imagesc(doppler_axis, range_axis, RD_dB);
             title('Range-Doppler Map (dB)', 'FontSize', 16);
         else
             imagesc(doppler_axis, range_axis, to_plot);
@@ -220,7 +224,8 @@ function interactive_txbf_viewer_filtered()
         axes(hAx3); cla(hAx3);
         doppler_prof = mean(to_plot,1);
         if isLog3
-            plot(doppler_axis, 20*log10(max(doppler_prof, 1) + eps), 'LineWidth', 1.0);
+            % plot(doppler_axis, 10*log10(max(doppler_prof, 1) + eps), 'LineWidth', 1.0);
+            plot(doppler_axis, 10*log10(doppler_prof), 'LineWidth', 1.0);
             title('Doppler Profile (All Ranges, dB)', 'FontSize', 16);
             ylabel('Power (dB)', 'FontSize', 16);
         else
@@ -292,7 +297,7 @@ function interactive_txbf_viewer_filtered()
     function next_batch(~,~)
         if curr_batch_end < total_frames
             curr_batch_start = curr_batch_start + frames_per_batch;
-            curr_batch_end   = min(curr_batch_start + frames_per_batch - 1, total_frames);
+            curr_batch_end = min(curr_batch_start + frames_per_batch - 1, total_frames);
             load_current_batch();
         end
     end
@@ -300,7 +305,7 @@ function interactive_txbf_viewer_filtered()
     function prev_batch(~,~)
         if curr_batch_start > 1
             curr_batch_start = max(1, curr_batch_start - frames_per_batch);
-            curr_batch_end   = min(curr_batch_start + frames_per_batch - 1, total_frames);
+            curr_batch_end = min(curr_batch_start + frames_per_batch - 1, total_frames);
             load_current_batch();
         end
     end
@@ -430,7 +435,7 @@ function interactive_txbf_viewer_filtered()
         % ----- RD map with gate band -----
         axes(droneWin.axRD); cla(droneWin.axRD);
         if isLog1
-            RD_dB = 20*log10(to_plot + eps);
+            RD_dB = 10*log10(to_plot + eps);    % 10*log not 20*log, because the power is already sqaured (taking magnitude previously)
             imagesc(doppler_axis, range_axis, RD_dB); axis xy;
             title('RD (dB) with Gate');
         else
@@ -473,7 +478,7 @@ function interactive_txbf_viewer_filtered()
 
         % Plot with gate overlay
         if isLog2
-            rp_plot = 20*log10(max(rp,2)+eps);
+            rp_plot = 10*log10(rp);
             plot(range_axis, rp_plot, 'LineWidth',1.0); hold on;
             plot(range_axis(gate_idx), rp_plot(gate_idx), 'LineWidth',2.0);
             ylabel('Power (dB)');
@@ -501,9 +506,10 @@ function interactive_txbf_viewer_filtered()
 
         % ----- Drone-only Doppler (gated rows only) -----
         axes(droneWin.axDopp); cla(droneWin.axDopp);
-        doppler_gated = mean(to_plot(gate_idx,:),1);
+        % doppler_gated = mean(to_plot(gate_idx,:),1);
+        doppler_gated = max(to_plot(gate_idx,:), [], 1);
         if isLog3
-            plot(doppler_axis, 20*log10(max(doppler_gated,1)+eps), 'LineWidth',1.5);
+            plot(doppler_axis, 10*log10(doppler_gated), 'LineWidth',1.5);
             title('Drone-Only Doppler (dB)'); ylabel('Power (dB)');
         else
             plot(doppler_axis, doppler_gated, 'LineWidth',1.5);
