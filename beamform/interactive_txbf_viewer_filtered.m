@@ -13,13 +13,17 @@ function interactive_txbf_viewer_filtered()
     % ===================== USER SETTINGS =====================
     frames_per_batch = 500;
 
-    data_folder = './output/out_txbf_19_12_50_50/';
+    data_folder = './output/out_cor_txbf_5m/';
+    % data_folder = './output/sim_uav_3p_a9_bl_20/';
     % IMPORTANT: this is your updated folder with only the selected frames
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    % frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     params_folder = data_folder;
+    axis_scale = false;
+    stable_range = 20;
 
     % Max range to display (meters)
-    maxRange = 500;  
+    maxRange = 500;
 
     % ===================== LIST FRAME FILES =====================
     frame_files = dir(fullfile(frame_folder, 'frame_*.mat'));
@@ -38,8 +42,11 @@ function interactive_txbf_viewer_filtered()
     % ===================== LOAD PARAMS & BUILD AXES =====================
     params_file = dir(fullfile(params_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in %s', params_folder);
-    tmp = load(fullfile(params_folder, params_file(1).name), 'params');
+    % tmp = load(fullfile(params_folder, params_file(1).name), 'params');
+    tmp = load(fullfile(params_folder, params_file.name), 'params');
     params = tmp.params;
+
+    params.error_flag = "";
 
     anglesToSteer = params.anglesToSteer;
     if isfield(params, 'NumAnglesToSweep')
@@ -51,10 +58,13 @@ function interactive_txbf_viewer_filtered()
     % Build single global range & Doppler axes
     c = physconst('LightSpeed');
 
-    if isfield(params, 'fs')
-        fs = params.fs;
-    elseif isfield(params, 'samplingRate')
+    if isfield(params, 'samplingRate')
         fs = params.samplingRate;
+    elseif isfield(params, 'fs')
+        fs = params.fs;
+    elseif isfield(params, 'f_s')
+        params.error_flag = params.error_flag + "samplingRate not found \n";
+        fs = params.f_s;
     else
         error('params.fs or params.samplingRate not found in params.');
     end
@@ -67,6 +77,9 @@ function interactive_txbf_viewer_filtered()
 
     if isfield(params, 'slope')
         slope = params.slope;
+    elseif isfield(params, 'Slope_MHzperus')
+        slope = params.Slope_MHzperus * 1e12;
+        params.error_flag = params.error_flag + "slope not found \n";
     else
         error('params.slope not found in params.');
     end
@@ -82,6 +95,8 @@ function interactive_txbf_viewer_filtered()
     else
         error('params.v_max not found in params.');
     end
+
+    fprintf("fs: %s, samplingRate: %s, slope: %s.", params.f_s, params.samplingRate, params.slope);
 
     % Axes used for all frames
     range_axis_full   = (0:rangeFFTSize-1).' * (c * fs) / (2 * slope * rangeFFTSize);
@@ -106,10 +121,62 @@ function interactive_txbf_viewer_filtered()
     foldingWin.jmin = 2;   % folding search range
     foldingWin.jmax = 32;
 
-    % ===================== MAIN WINDOW UI =====================
-    hFig = figure('Name', 'TX Beamforming Interactive Viewer (Gated)', ...
-                  'NumberTitle', 'off', 'Position', [100 100 1200 800]);
+    % ===================== AXIS SCALING (DISPLAY ONLY) =====================
+    axisScale.enable = axis_scale;
 
+    % --- Option A: one-point scale (assumes zero range offset b = 0) ---
+    % axisScale.range.onePoint.enable = true;
+    % axisScale.range.onePoint.R_meas_m = 86.5074;   % what your current axis shows
+    % axisScale.range.onePoint.R_true_m = 23.0;      % what you claim is ground-truth
+
+    % --- Option B: two-point affine calibration (scale + offset) ---
+    % If you have TWO known targets, use this instead and set onePoint.enable=false.
+    axisScale.range.twoPoint.enable = true;
+    axisScale.range.twoPoint.R_meas_m = [80.0, 0];   % example
+    if isequal(stable_range, 20)
+        axisScale.range.twoPoint.R_true_m = [40.0, 0]; % 2 times
+    elseif isequal(stable_range, 50)
+        axisScale.range.twoPoint.R_true_m = [64.0, 0]; % 1.6 times
+    else
+        axisScale.range.twoPoint.R_true_m = [70.0, 0];    % example
+    end
+    % axisScale.range.twoPoint.R_true_m = [40.0, 0];    % example
+
+    % Doppler scaling (leave as identity unless you have a reason)
+    axisScale.dopp.enable = false;
+    axisScale.dopp.a = 1.0;
+    axisScale.dopp.b = 0.0;
+
+    % -------------------- APPLY DISPLAY SCALING --------------------
+    if axisScale.enable
+
+        % Range scaling: R_shown = a*R + b
+        if axisScale.range.twoPoint.enable
+            p = polyfit(axisScale.range.twoPoint.R_meas_m(:), ...
+                        axisScale.range.twoPoint.R_true_m(:), 1);
+            aR = p(1);
+            bR = p(2);
+        elseif axisScale.range.onePoint.enable
+            aR = axisScale.range.onePoint.R_true_m / axisScale.range.onePoint.R_meas_m;
+            bR = 0.0;  % assumption (cannot infer b from one point)
+        else
+            aR = 1.0; bR = 0.0;
+        end
+
+        range_axis_full = aR * range_axis_full + bR;
+
+        % Keep viewer trimming consistent with the shown axis
+        maxRange = aR * maxRange + bR;
+
+        % If you rely on initial gate center/width guesses, rescale those too
+        droneWin.gate_center_m = aR * droneWin.gate_center_m + bR;
+        droneWin.gate_width_m  = abs(aR) * droneWin.gate_width_m;
+    end
+
+    % ===================== MAIN WINDOW UI =====================
+    figureName = ['TX Beamforming Interactive Viewer (Filtered) file: ', frame_folder];
+    hFig = figure('Name', figureName, ...
+                  'NumberTitle', 'off', 'Position', [100 100 1200 800]);
     hNext = uicontrol('Style', 'pushbutton', 'String', 'Next', ...
         'Position', [600 20 80 25], 'Callback', @next_batch);
     hPrev = uicontrol('Style', 'pushbutton', 'String', 'Previous', ...

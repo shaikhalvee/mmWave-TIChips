@@ -5,12 +5,12 @@
 %   Replace the profile function handle with @chirpProfile_TxBF_SMRR or
 %   @chirpProfile_TxBF_LRR for different range modes.
 %---------------------------------------------------------------------
-function run_tx_beamforming_capture(angles, profileFcn, paths)
+function run_tx_beamforming_capture(angles, profileFcn, filePath)
 
     arguments
         angles
         profileFcn (1,1) function_handle % e.g. @chirpProfile_TxBF_LRR
-        paths
+        filePath
     end
 
     %% House‑keeping --------------------------------------------------
@@ -18,7 +18,12 @@ function run_tx_beamforming_capture(angles, profileFcn, paths)
     % clearvars -except profileFcn angles paths;
 
     %% User‑editable paths -------------------------------------------
-    paths.testRoot = 'out_txbf_19_12_50_50'; % the name of the test file/folder
+    default_path = 'out_txbf_2_5_50_70';
+    if isempty(filePath)
+        paths.testRoot = default_path;
+    else
+        paths.testRoot = filePath; % the name of the test file/folder
+    end
     paths.outDir = ['./output/' paths.testRoot];
     paths.dllPath      = "C:\ti\mmwave_studio_02_01_01_00\mmWaveStudio\Clients\RtttNetClientController\RtttNetClientAPI.dll";
     paths.psLutPath    = "./input/calibrConfig/phaseShifterCalibration.mat";
@@ -41,8 +46,8 @@ function run_tx_beamforming_capture(angles, profileFcn, paths)
     activeDevs = find(params.RadarDevice);   % 1..4 for master+slaves
 
     for devId = activeDevs
-        err = sensor_advance_frame_BF(devId, params, Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg);
-        % err = Sensor_AdvanceFrame_BF(devId, params, Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg);
+        % err = sensor_advance_frame_BF(devId, params, Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg);
+        err = Sensor_AdvanceFrame_BF(devId, params, Tx1_Ph_Deg, Tx2_Ph_Deg, Tx3_Ph_Deg);
         assert(err==30000, "[Dev %d] configuration failed (status %d)", devId, err);
     end
 

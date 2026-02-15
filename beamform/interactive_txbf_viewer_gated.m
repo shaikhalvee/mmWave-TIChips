@@ -4,8 +4,8 @@ function interactive_txbf_viewer_gated()
 % Adds an optional second window that shows DRONE-ONLY Doppler using a range gate.
 
     frames_per_batch = 300;
-    data_folder  = './output/out_txbf_2_12_150_100_255/';
-    frame_folder = [data_folder 'rangeDopplerFFTmap_11/'];
+    data_folder  = './output/sim_uav_3p_a4_rpm50_2/';
+    frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
     config_folder = data_folder;
 
     % maximum range

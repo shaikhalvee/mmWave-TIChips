@@ -61,8 +61,8 @@ uav.body_rcs       = 1.0;    % relative RCS weight of the body
 % Rotors & blades (micro-Doppler)
 uav.N_rotors         = 4;    % quadcopter
 uav.N_blades_per_rot = 4;    % blades per rotor
-uav.N_scat_per_blade = 5;   % point scatterers along each blade
-uav.blade_length     = 0.1; % blade length (m)
+uav.N_scat_per_blade = 5;    % point scatterers along each blade
+uav.blade_length     = 0.1;  % blade length (m)
 uav.uav_rot_Hz       = 50;   % rotor rotation frequency (Hz) ~ 2400 rpm
 
 % If we want "pure acceleration smear" with no rotor micro-Doppler,
@@ -73,7 +73,7 @@ uav.blade_rcs = 0.25;  % total RCS weight of all blade scatterers
 uav.rotor_freq_jitter = 0.0;   % ±10% variation between rotors
 
 % Noise
-noise.SNR_dB         = 20;   % approximate SNR of beat signal [dB]
+noise.SNR_dB = 20;   % approximate SNR of beat signal [dB]
 
 %% ------------- 3. BUILD SLOW-TIME GEOMETRY ----------------------------
 numChirps = radar.N_chirps;

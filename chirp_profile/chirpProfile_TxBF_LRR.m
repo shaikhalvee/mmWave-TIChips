@@ -79,15 +79,15 @@ function [params] = chirpProfile_TxBF_LRR(angles)
     %% Chirp/Profile parameters for LRR
     % Typically, LRR uses lower slope => smaller bandwidth => can detect out to ~300m
     nchirp_loops = 255;
-    Num_Frames = 0;
+    Num_Frames = 100;
     
     params.Start_Freq_GHz = 77;        % start freq (GHz)
-    params.Slope_MHzperus = 8;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
-    params.Idle_Time_us = 60;
+    params.Slope_MHzperus = 7;         % slope is 7 MHz/us (narrower BW than SMRR/USRR)
+    params.Idle_Time_us = 70;
     params.Tx_Start_Time_us = 0;
     params.Adc_Start_Time_us = 5;
-    params.Ramp_End_Time_us = 60;      % relatively short ramp => longer max range
-    params.Sampling_Rate_ksps = 16000; % 15 Msps
+    params.Ramp_End_Time_us = 50;      % relatively short ramp => longer max range
+    params.Sampling_Rate_ksps = 16000; % 16 Msps
     params.Samples_per_Chirp = 512;    
     params.Rx_Gain_dB = 52;
 

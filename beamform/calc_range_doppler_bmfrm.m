@@ -71,7 +71,9 @@ function [RD_map, range_axis, ...
     end
 
     % Mean over Rx, keep Ang dimension:
-    tmpD = mean(doppler_fft, 3);                  % [R, D, 1, Ang]
+    % tmpD = mean(doppler_fft, 3);                  % [R, D, 1, Ang]
+    tmpD = mean(abs(doppler_fft), 3); % or sum(abs(...),3)  this is preferable, because it strenghten the signal as well as the clutter
+    % tmpD = doppler_fft(:,:,8,:);
     tempDoppFFT = reshape(tmpD, [numRangeBin, numDopplerBin, numSweep]); % [R, D, Ang]
 
     % doppler_fft = [R, D, Rx, numAng]
