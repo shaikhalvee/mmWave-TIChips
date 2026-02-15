@@ -88,7 +88,7 @@ end
 
 
 
-function [adcData1Complex] = readBinFile(fileFullPath, Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
+function [adcData1Complex] = readBinFile2(fileFullPath, Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
 Expected_Num_SamplesPerFrame = numSamplePerChirp*numChirpPerLoop*numLoops*numRXPerDevice*2;
 fp = fopen(fileFullPath, 'r');
 fseek(fp,(frameIdx-1)*Expected_Num_SamplesPerFrame*2, 'bof');
@@ -102,4 +102,13 @@ adcData1Complex = reshape(adcData1, numRXPerDevice, numSamplePerChirp, numChirpP
 
 
 fclose(fp);
+end
+
+function [adcDataComplex] = readBinFile(fileFullPath, ~, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
+    Expected_Num_SamplesPerFrame = numSamplePerChirp * numChirpPerLoop * numLoops * numRXPerDevice * 2;
+    fp = fopen(fileFullPath, 'r');
+    fseek(fp,(frameIdx-1) * Expected_Num_SamplesPerFrame * 2, 'bof');
+    adcData = fread(fp, Expected_Num_SamplesPerFrame, 'int16=>double');
+    adcData = adcData(1:2:end) + 1j*adcData(2:2:end);
+    adcDataComplex = reshape(adcData, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
 end
