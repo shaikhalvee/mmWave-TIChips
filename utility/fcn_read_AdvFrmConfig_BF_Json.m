@@ -60,10 +60,10 @@ fileFullPath_slave3 = fullfile(dataFolder,fileNameCascade.slave3);
 if (params.Chirp_Frame_BF)
     numLoops = numChirpPerLoop;
     numChirpPerLoop = N_angles;
-    [radar_data_Rxchain_master] = readBinFile(fileFullPath_master, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave1] = readBinFile(fileFullPath_slave1, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave2] = readBinFile(fileFullPath_slave2, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave3] = readBinFile(fileFullPath_slave3, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_master] = readBinFilenew(fileFullPath_master, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave1] = readBinFilenew(fileFullPath_slave1, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave2] = readBinFilenew(fileFullPath_slave2, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave3] = readBinFilenew(fileFullPath_slave3, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
     adcData1Complex(:,:,1:4,:) = permute(radar_data_Rxchain_master, [2 4 1 3]);
     adcData1Complex(:,:,5:8,:) = permute(radar_data_Rxchain_slave1, [2 4 1 3]);
     adcData1Complex(:,:,9:12,:) = permute(radar_data_Rxchain_slave2, [2 4 1 3]);
@@ -71,10 +71,10 @@ if (params.Chirp_Frame_BF)
 
 else
     numLoops = N_angles;
-    [radar_data_Rxchain_master] = readBinFile(fileFullPath_master, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave1] = readBinFile(fileFullPath_slave1, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave2] = readBinFile(fileFullPath_slave2, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
-    [radar_data_Rxchain_slave3] = readBinFile(fileFullPath_slave3, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_master] = readBinFilenew(fileFullPath_master, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave1] = readBinFilenew(fileFullPath_slave1, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave2] = readBinFilenew(fileFullPath_slave2, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
+    [radar_data_Rxchain_slave3] = readBinFilenew(fileFullPath_slave3, params.Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices);
     adcData1Complex(:,:,1:4,:) = permute(radar_data_Rxchain_master, [2 3 1 4]);
     adcData1Complex(:,:,5:8,:) = permute(radar_data_Rxchain_slave1, [2 3 1 4]);
     adcData1Complex(:,:,9:12,:) = permute(radar_data_Rxchain_slave2, [2 3 1 4]);
@@ -88,7 +88,7 @@ end
 
 
 
-function [adcData1Complex] = readBinFile2(fileFullPath, Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
+function [adcData1Complex] = readBinFile(fileFullPath, Chirp_Frame_BF, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
 Expected_Num_SamplesPerFrame = numSamplePerChirp*numChirpPerLoop*numLoops*numRXPerDevice*2;
 fp = fopen(fileFullPath, 'r');
 fseek(fp,(frameIdx-1)*Expected_Num_SamplesPerFrame*2, 'bof');
@@ -98,17 +98,55 @@ adcData1(neg)    = adcData1(neg) - 2^16;
 %%
 adcData1 = adcData1(1:2:end) + sqrt(-1)*adcData1(2:2:end);
 adcData1Complex = reshape(adcData1, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
+% tmp = reshape(adcData1, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
+% adcData1Complex = permute(tmp, [2 1 3 4]);   % -> [rx x sample x chirp x loop]
 
 
 
 fclose(fp);
 end
 
-function [adcDataComplex] = readBinFile(fileFullPath, ~, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
+function [adcDataComplex] = readBinFilenew(fileFullPath, ~, frameIdx,numSamplePerChirp,numChirpPerLoop,numLoops, numRXPerDevice, numDevices)
     Expected_Num_SamplesPerFrame = numSamplePerChirp * numChirpPerLoop * numLoops * numRXPerDevice * 2;
     fp = fopen(fileFullPath, 'r');
     fseek(fp,(frameIdx-1) * Expected_Num_SamplesPerFrame * 2, 'bof');
     adcData = fread(fp, Expected_Num_SamplesPerFrame, 'int16=>double');
     adcData = adcData(1:2:end) + 1j*adcData(2:2:end);
-    adcDataComplex = reshape(adcData, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
+    adc = reshape(adcData, numSamplePerChirp, numRXPerDevice, numChirpPerLoop, numLoops);
+    adcDataComplex = permute(adc, [2 1 3 4]);
+    % adcDataComplex = reshape(adc, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
+    fclose(fp);
+end
+
+
+function adcData1Complex = readBinFileNew(fileFullPath, Chirp_Frame_BF, frameIdx, ...
+    numSamplePerChirp, numChirpPerLoop, numLoops, numRXPerDevice, numDevices, rxLayout)
+
+    if nargin < 9, rxLayout = "rx_block"; end
+
+    Expected = numSamplePerChirp * numChirpPerLoop * numLoops * numRXPerDevice * 2;
+
+    fp = fopen(fileFullPath, 'r', 'ieee-le');
+    assert(fp > 0, 'Cannot open %s', fileFullPath);
+    c = onCleanup(@() fclose(fp));
+
+    fseek(fp, (frameIdx-1) * Expected * 2, 'bof');
+
+    w = fread(fp, Expected, 'int16=>double');
+    assert(numel(w) == Expected, 'Short read.');
+
+    % IQ interleaved
+    adc = w(1:2:end) + 1j*w(2:2:end);
+
+    switch rxLayout
+        case "rx_interleaved"
+            adcData1Complex = reshape(adc, numRXPerDevice, numSamplePerChirp, numChirpPerLoop, numLoops);
+
+        case "rx_block"
+            tmp = reshape(adc, numSamplePerChirp, numRXPerDevice, numChirpPerLoop, numLoops);
+            adcData1Complex = permute(tmp, [2 1 3 4]);
+
+        otherwise
+            error('rxLayout must be "rx_interleaved" or "rx_block".');
+    end
 end
