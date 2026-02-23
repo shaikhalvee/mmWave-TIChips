@@ -13,14 +13,14 @@ function interactive_txbf_viewer_filtered()
     % ===================== USER SETTINGS =====================
     frames_per_batch = 500;
 
-    data_folder = './output/out_cor_txbf_5m/';
+    data_folder = './output/in_test6to6/';
     % data_folder = './output/sim_uav_3p_a9_bl_20/';
     % IMPORTANT: this is your updated folder with only the selected frames
     % frame_folder = [data_folder 'rangeDopplerFFTmap_sim/'];
-    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
+    frame_folder = [data_folder 'rangeDopplerFFTmap_10_rx1/'];
     params_folder = data_folder;
-    axis_scale = false;
-    stable_range = 20;
+    % axis_scale = false;
+    % stable_range = 20;
 
     % Max range to display (meters)
     maxRange = 500;
@@ -120,58 +120,6 @@ function interactive_txbf_viewer_filtered()
     foldingWin.exists = false;
     foldingWin.jmin = 2;   % folding search range
     foldingWin.jmax = 32;
-
-    % ===================== AXIS SCALING (DISPLAY ONLY) =====================
-    axisScale.enable = axis_scale;
-
-    % --- Option A: one-point scale (assumes zero range offset b = 0) ---
-    % axisScale.range.onePoint.enable = true;
-    % axisScale.range.onePoint.R_meas_m = 86.5074;   % what your current axis shows
-    % axisScale.range.onePoint.R_true_m = 23.0;      % what you claim is ground-truth
-
-    % --- Option B: two-point affine calibration (scale + offset) ---
-    % If you have TWO known targets, use this instead and set onePoint.enable=false.
-    axisScale.range.twoPoint.enable = true;
-    axisScale.range.twoPoint.R_meas_m = [80.0, 0];   % example
-    if isequal(stable_range, 20)
-        axisScale.range.twoPoint.R_true_m = [40.0, 0]; % 2 times
-    elseif isequal(stable_range, 50)
-        axisScale.range.twoPoint.R_true_m = [64.0, 0]; % 1.6 times
-    else
-        axisScale.range.twoPoint.R_true_m = [70.0, 0];    % example
-    end
-    % axisScale.range.twoPoint.R_true_m = [40.0, 0];    % example
-
-    % Doppler scaling (leave as identity unless you have a reason)
-    axisScale.dopp.enable = false;
-    axisScale.dopp.a = 1.0;
-    axisScale.dopp.b = 0.0;
-
-    % -------------------- APPLY DISPLAY SCALING --------------------
-    if axisScale.enable
-
-        % Range scaling: R_shown = a*R + b
-        if axisScale.range.twoPoint.enable
-            p = polyfit(axisScale.range.twoPoint.R_meas_m(:), ...
-                        axisScale.range.twoPoint.R_true_m(:), 1);
-            aR = p(1);
-            bR = p(2);
-        elseif axisScale.range.onePoint.enable
-            aR = axisScale.range.onePoint.R_true_m / axisScale.range.onePoint.R_meas_m;
-            bR = 0.0;  % assumption (cannot infer b from one point)
-        else
-            aR = 1.0; bR = 0.0;
-        end
-
-        range_axis_full = aR * range_axis_full + bR;
-
-        % Keep viewer trimming consistent with the shown axis
-        maxRange = aR * maxRange + bR;
-
-        % If you rely on initial gate center/width guesses, rescale those too
-        droneWin.gate_center_m = aR * droneWin.gate_center_m + bR;
-        droneWin.gate_width_m  = abs(aR) * droneWin.gate_width_m;
-    end
 
     % ===================== MAIN WINDOW UI =====================
     figureName = ['TX Beamforming Interactive Viewer (Filtered) file: ', frame_folder];
