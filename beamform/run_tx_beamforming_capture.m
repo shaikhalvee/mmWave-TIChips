@@ -18,7 +18,7 @@ function run_tx_beamforming_capture(angles, profileFcn, filePath)
     % clearvars -except profileFcn angles paths;
 
     %% User‑editable paths -------------------------------------------
-    default_path = 'out_txbf_2_5_50_70';
+    default_path = 'G:\RADAR_DATA\in_test1.bin';
     if isempty(filePath)
         paths.testRoot = default_path;
     else

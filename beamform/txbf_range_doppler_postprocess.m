@@ -5,11 +5,11 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'G:\RADAR_DATA\out_cor_txbf_15m_scan';
+adc_data_folder = 'G:\RADAR_DATA\in_test8to8';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
-output_folder =  ['./output/' testRootFolder];
+output_folder =  ['./output/' testRootFolder]; 
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10_rx1/'];
 calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -46,13 +46,13 @@ all_doppler_axis = {};
 all_range_angle_stich = {};
 all_to_plot = {};
 
-frameCounter = 1;
+frameCounter = 2;
 
 for i_file = 1:numel(fileIdx_unique)
     [fileNameStruct] = getBinFileNames_withIdx(adc_data_folder, fileIdx_unique{i_file});
     [numValidFrames, ~] = getValidNumFrames(fullfile(adc_data_folder, fileNameStruct.masterIdxFile));
 
-    for frameId = 1:numValidFrames
+    for frameId = 2:numValidFrames
         params.frameId = frameId;
 
         % ----------------- LOAD RAW ADC DATA (ALL RX, 1 ANGLE) ----------
@@ -84,7 +84,7 @@ for i_file = 1:numel(fileIdx_unique)
 
         % display_graph(params, to_plot, range_axis, doppler_axis, range_angle_stich, 10);
     end
-end
+end 
 
 params.total_frames = frameCounter-1;
 
