@@ -61,13 +61,13 @@
 
 function [numIdx, dataFileSize] = getValidNumFrames(adcIdxFileName)
     idxFile = fopen(adcIdxFileName,'r');
-    heaferInfoSize = 6;
-    heaferInfo = fread(idxFile, heaferInfoSize,'uint32');
-    numIdx = heaferInfo(4); % number of effective frame
+    headerInfoSize = 6;
+    headerInfo = fread(idxFile, headerInfoSize,'uint32');
+    numIdx = headerInfo(4); % number of effective frame
     fclose(idxFile);
     idxFile = fopen(adcIdxFileName,'r');
-    heaferInfoSize = 3;
-    heaferInfo = fread(idxFile, heaferInfoSize,'uint64');
-    dataFileSize = heaferInfo(3); % data size for the effective number of frames
+    headerInfoSize = 3;
+    headerInfo = fread(idxFile, headerInfoSize,'uint64');
+    dataFileSize = headerInfo(3); % data size for the effective number of frames
     fclose(idxFile);
 end

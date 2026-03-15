@@ -30,7 +30,7 @@ function interactive_txbf_viewer_filtered()
     total_frames = numel(frame_files);
 
     % Parse physical frame IDs from filenames: frame_00112.mat -> 112
-    frame_ids = zeros(total_frames, 1);
+    frame_ids = zeros(total_frames,1);
     for k = 1:total_frames
         tok = regexp(frame_files(k).name, 'frame_(\d+)\.mat', 'tokens', 'once');
         assert(~isempty(tok), 'Unexpected frame filename: %s', frame_files(k).name);
@@ -40,6 +40,7 @@ function interactive_txbf_viewer_filtered()
     % ===================== LOAD PARAMS & BUILD AXES =====================
     params_file = dir(fullfile(params_folder, '*_params.mat'));
     assert(~isempty(params_file), 'Cannot find *_params.mat in %s', params_folder);
+    % tmp = load(fullfile(params_folder, params_file(1).name), 'params');
     tmp = load(fullfile(params_folder, params_file.name), 'params');
     params = tmp.params;
 
@@ -53,19 +54,33 @@ function interactive_txbf_viewer_filtered()
     end
 
     % Build single global range & Doppler axes
-    
+    c = physconst('LightSpeed');
+
+    if isfield(params, 'samplingRate')
+        fs = params.samplingRate;
+    elseif isfield(params, 'fs')
+        fs = params.fs;
+    elseif isfield(params, 'f_s')
+        params.error_flag = params.error_flag + "samplingRate not found \n";
+        fs = params.f_s;
+    else
+        error('params.fs or params.samplingRate not found in params.');
+    end
 
     if isfield(params, 'rangeFFTSize')
         rangeFFTSize = params.rangeFFTSize;
     else
         error('params.rangeFFTSize not found in params.');
     end
-    if isfield(params, 'rangeResolution')
-        rangeResolution = params.rangeResolution;
-    else
-        error('params.rangeResolution not found it params');
-    end
 
+    if isfield(params, 'slope')
+        slope = params.slope;
+    elseif isfield(params, 'Slope_MHzperus')
+        slope = params.Slope_MHzperus * 1e12;
+        params.error_flag = params.error_flag + "slope not found \n";
+    else
+        error('params.slope not found in params.');
+    end
 
     if isfield(params, 'dopplerFFTSize')
         numDopplerBin = params.dopplerFFTSize;
@@ -81,7 +96,7 @@ function interactive_txbf_viewer_filtered()
 
 
     % Axes used for all frames
-    range_axis_full   = (0:rangeFFTSize-1).' * rangeResolution;
+    range_axis_full   = (0:rangeFFTSize-1).' * (c * fs) / (2 * slope * rangeFFTSize);
     doppler_axis_full = linspace(-v_max, v_max, numDopplerBin);
 
     % ===================== BATCH STATE =====================
@@ -243,7 +258,7 @@ function interactive_txbf_viewer_filtered()
         for i = 1:(curr_batch_end - curr_batch_start + 1)
             globalIdx = curr_batch_start + i - 1;
             tmp = load(fullfile(frame_files(globalIdx).folder, ...
-                                frame_files(globalIdx).name), 'RD_map');
+                                frame_files(globalIdx).name));
 
             % --- Compatibility & shape normalization ---
             if isfield(tmp,'RD_map')
@@ -520,7 +535,7 @@ function interactive_txbf_viewer_filtered()
             gate_center, gate_width, ...
             P_gate_mean, P_oth_mean, round(fold_size_rBin)));
 
-        % updateFoldingWindow();
+        updateFoldingWindow();
     end
 
     % ===================== FOLDING WINDOW =====================

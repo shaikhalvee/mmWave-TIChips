@@ -5,11 +5,11 @@ close all; clc; clearvars;
 
 
 % ----------------- USER CONFIG ---------------------------------------
-adc_data_folder = 'G:\RADAR_DATA\in_test8to8';
+adc_data_folder = 'G:\RADAR_DATA\in_txbf_hand_test';
 [~, testRootFolder, ~] = fileparts(adc_data_folder);
 output_folder =  ['./output/' testRootFolder]; 
 oldParamsFile = [output_folder filesep testRootFolder '_params.mat'];
-frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10_rx1/'];
+frame_folder = [output_folder filesep 'rangeDopplerFFTmap_10_rx_mn/'];
 calib_file = './input/calibrConfig/calibrateResults_dummy.mat';
 
 % ----------------- LOAD PARAMS FROM JSON & CALIB ---------------------
@@ -30,8 +30,8 @@ numRx = params.numRX;
 numAngle = params.NumAnglesToSweep;
 
 % clutter & noise handle
-dcOffsetRemoval = true;
-dopplerClutterRemoval = false;
+dcOffsetRemoval = 1;
+dopplerClutterRemoval = 0;
 
 % Calibration (RX phase)
 load(calib_file, 'calibResult');
@@ -60,15 +60,13 @@ for i_file = 1:numel(fileIdx_unique)
         radar_data_txbf = radar_data_txbf(:,:,params.TI_Cascade_RX_ID,:);
 
         % --------------- RANGE-DOPPLER PROCESSING & PLOT ---------------
-        [RD_map, range_axis, doppler_axis, ...
-            range_angle_stich, params] = calc_range_doppler_bmfrm( ...
+        [RD_map, range_axis, doppler_axis, params] = calc_range_doppler_bmfrm( ...
                     radar_data_txbf, params, BF_MIMO_ref, dcOffsetRemoval, dopplerClutterRemoval);
 
         % Store for saving later
         % all_RD_map{end+1} = RD_map;
         all_range_axis{end+1} = range_axis;
         all_doppler_axis{end+1} = doppler_axis;
-        all_range_angle_stich{end+1} = range_angle_stich;
         % to_plot = RD_map;
         % saving plot data
         % all_to_plot{end+1} = to_plot;
@@ -89,6 +87,6 @@ end
 params.total_frames = frameCounter-1;
 
 
-save(fullfile(output_folder, "config.mat"), "all_range_axis", "all_doppler_axis", "all_range_angle_stich", '-v7.3');
+save(fullfile(output_folder, "config.mat"), "all_range_axis", "all_doppler_axis", '-v7.3');
 
 save(fullfile(output_folder, [testRootFolder '_params.mat']), 'params', '-v7.3');

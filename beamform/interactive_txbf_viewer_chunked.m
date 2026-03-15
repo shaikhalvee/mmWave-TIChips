@@ -5,8 +5,8 @@ function interactive_txbf_viewer_chunked()
     frames_per_batch = 120;
     frameChunk = 8; % <-- Number of consecutive frames to sum/average
     
-    data_folder = './output/out_txbf_25_8_sl_15_fr_200/';
-    frame_folder = [data_folder 'RD_SST/'];
+    data_folder = './output/in_txbf_corwalk2/';
+    frame_folder = [data_folder 'rangeDopplerFFTmap_10/'];
     config_folder = data_folder;
 
     % Get all frame file names
